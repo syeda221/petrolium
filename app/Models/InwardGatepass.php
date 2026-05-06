@@ -8,11 +8,24 @@ use Illuminate\Database\Eloquent\Model;
 class InwardGatepass extends Model
 {
     use HasFactory;
-     protected $fillable = [
-        'branch_id','warehouse_id','vendor_id',
-        'purchase_id','gatepass_date','gatepass_no',
-        'remarks','status','created_by'
-    ];
+    protected $guarded = [];
+
+    public static function generateInvoiceNo()
+    {
+        $prefix = 'IGP-';
+
+        $lastInvoice = self::orderBy('id', 'desc')->first();
+        $lastNumber = 0;
+
+        if ($lastInvoice && $lastInvoice->invoice_no) {
+            $lastNumber = (int)substr($lastInvoice->invoice_no, strlen($prefix));
+        }
+
+        $newNumber = str_pad($lastNumber + 1, 3, '0', STR_PAD_LEFT);
+
+        return $prefix . $newNumber;
+    }
+
     public function items()
     {
         return $this->hasMany(InwardGatepassItem::class);

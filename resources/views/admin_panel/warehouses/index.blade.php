@@ -5,13 +5,18 @@
     <div class="main-content-inner">
         <div class="container-fluid">
 
-            <div class="page-header row">
-                <div class="page-title col-lg-6">
-                    <h4>Warehouse List</h4>
-                    <h6>Manage Warehouses</h6>
+            <div class="page-header row align-items-center mb-3">
+                <div class="col-lg-6 col-md-6 col-sm-12">
+                    <h4 class="mb-1">Warehouse List</h4>
+                    <h6 class="text-muted">Manage Warehouses</h6>
                 </div>
-                <div class="page-btn d-flex justify-content-end col-lg-6">
-                    <button class="btn btn-outline-primary mb-2" data-bs-toggle="modal" data-bs-target="#warehouseModal" onclick="clearWarehouse()">Add Warehouse</button>
+                <div class="col-lg-6 col-md-6 col-sm-12 d-flex justify-content-end gap-2">
+                    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#warehouseModal" onclick="clearWarehouse()">
+                        Add Warehouse
+                    </button>
+                    <a href="{{ url()->previous() }}" class="btn btn-danger text-center">
+                        Back
+                    </a>
                 </div>
             </div>
 
@@ -38,7 +43,7 @@
                                         data-bs-target="#warehouseModal">
                                         Edit
                                     </button>
-                                    <a href="{{ url('warehouse/delete/'.$w->id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Delete?')">Delete</a>
+                                    <!-- <a href="{{ url('warehouse/delete/'.$w->id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Delete?')">Delete</a> -->
                                 </td>
                             </tr>
                             @endforeach
@@ -74,7 +79,7 @@
 @endsection
 
     {{-- @push('scripts') --}}
-    @section('js')
+    @section('scripts')
         <script>
     function clearWarehouse(){ $('#warehouse_id').val(''); $('#warehouse_name').val(''); $('#location').val(''); $('#remarks').val(''); }
 

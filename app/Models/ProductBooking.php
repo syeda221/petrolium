@@ -1,6 +1,7 @@
 <?php
 namespace App\Models;
 
+use App\Models\Product;
 use Illuminate\Database\Eloquent\Model;
 
 class ProductBooking extends Model
@@ -15,6 +16,10 @@ class ProductBooking extends Model
     public function customer_relation()
     {
         return $this->belongsTo(Customer::class, 'customer', 'id');
+    }
+     public function productt()
+    {
+        return $this->belongsTo(Product::class, 'product', 'id');
     }
 }
 

@@ -13,33 +13,48 @@ class Product extends Model
 {
     use HasFactory, SoftDeletes;
     protected $guarded = [];
-    // protected $fillable = [
-    //     'creater_id', 'category_id', 'sub_category_id', 'item_code', 'item_name', 'size',
-    //     'opening_carton_quantity', 'carton_quantity', 'loose_pieces', 'pcs_in_carton',
-    //     'wholesale_price', 'retail_price', 'initial_stock', 'alert_quantity'
-    // ];
-  // app/Models/Product.php
+    
+    // Auto-generate item_code if not provided
+    protected static function boot()
+    {
+        parent::boot();
 
-// app/Models/Product.php
+        static::creating(function ($model) {
+            // If no item_code provided, generate one
+            if (empty($model->item_code)) {
+                $model->item_code = 'P' . str_pad($model->id ?? 0, 6, '0', STR_PAD_LEFT);
+            }
+        });
 
-public function activeDiscount()
-{
-    return $this->hasOne(ProductDiscount::class, 'product_id')
-                ->where('status', 1); // only active discount
-}
+        static::created(function ($model) {
+            // If auto-generated code looks temporary, update it with proper ID
+            if (strpos($model->item_code, 'P0000') === 0) {
+                $model->update(['item_code' => 'P' . str_pad($model->id, 6, '0', STR_PAD_LEFT)]);
+            }
+        });
+    }
 
+    public function activeDiscount()
+    {
+        return $this->hasOne(ProductDiscount::class, 'product_id')
+            ->where('status', 1); // only active discount
+    }
 
+    public function discountProduct()
+    {
+        return $this->hasOne(ProductDiscount::class, 'product_id', 'id')
+            ->where('status', 1);
+    }
 
+    public function category_relation()
+    {
+        return $this->belongsTo(Category::class, 'category_id');
+    }
 
-public function category_relation()
-{
-    return $this->belongsTo(Category::class,'category_id');
-}
-
-public function sub_category_relation()
-{
-    return $this->belongsTo(Subcategory::class,'sub_category_id');
-}
+    public function sub_category_relation()
+    {
+        return $this->belongsTo(Subcategory::class, 'sub_category_id');
+    }
 
 
     public function unit()
@@ -47,13 +62,11 @@ public function sub_category_relation()
         return $this->belongsTo(Unit::class, 'unit_id');
     }
     public function brand()
-{
-    return $this->belongsTo(Brand::class, 'brand_id');
-}
+    {
+        return $this->belongsTo(Brand::class, 'brand_id');
+    }
     public function stock()
-{
-    return $this->hasOne(Stock::class);
-}
-
-
+    {
+        return $this->hasOne(Stock::class);
+    }
 }

@@ -1,54 +1,243 @@
 @extends('admin_panel.layout.app')
 @section('content')
+<style>
+    /* Mobile optimization */
+    @media (max-width: 768px) {
+
+        .card-header {
+            flex-direction: column;
+            align-items: flex-start !important;
+            gap: 8px;
+        }
+
+        .card-header .btn {
+            width: 100%;
+        }
+
+        /* Hide less important columns on mobile */
+        #stockTable th:nth-child(6),
+        #stockTable td:nth-child(6),
+        /* Brand */
+
+        #stockTable th:nth-child(5),
+        #stockTable td:nth-child(5),
+        /* Unit */
+
+        #stockTable th:nth-child(7),
+        #stockTable td:nth-child(7),
+        /* Price */
+
+        #stockTable th:nth-child(11),
+        #stockTable td:nth-child(11)
+
+        /* Remarks */
+            {
+            display: none;
+        }
+
+        /* Smaller text for table */
+        #stockTable {
+            font-size: 12px;
+        }
+    }
+</style>
 
 <div class="card shadow-sm border-0">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h5>📦 Warehouse Stock List</h5>
-        <a href="{{ route('warehouse_stocks.create') }}" class="btn btn-primary btn-sm">Add Stock</a>
+        <h5 class="mb-0">
+            ➕ Stock Status
+        </h5>
+        <div class="d-flex gap-2">
+            <a href="{{ route('warehouse_stocks.create') }}" class="btn btn-primary btn-sm">Add Stock</a>
+            <a href="{{ url()->previous() }}" class="btn btn-danger btn-sm">Back</a>
+
+            <!-- EXPORT buttons (add these) -->
+            <a id="exportStockAllBtn" class="btn btn-outline-secondary btn-sm" href="javascript:void(0)">⬇ Export All</a>
+            <button id="exportStockSelectedBtn" class="btn btn-outline-primary btn-sm" type="button">⬇ Export Selected</button>
+        </div>
+
     </div>
+
     <div class="card-body">
-        <table class="table table-bordered table-striped" id="stockTable">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Warehouse</th>
-                    <th>Product</th>
-                    <th>Quantity</th>
-                    {{--  <th>Price</th>  --}}
-                    <th>Remarks</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($stocks as $stock)
-                <tr>
-                    <td>{{ $loop->iteration }}</td>
-                    <td>{{ $stock->warehouse->warehouse_name }}</td>
-                    <td>{{ $stock->product->item_name }}</td>
-                    <td>{{ $stock->quantity }}</td>
-                    {{--  <td>{{ $stock->price }}</td>  --}}
-                    <td>{{ $stock->remarks }}</td>
-                    <td>
-                        <a href="{{ route('warehouse_stocks.edit', $stock->id) }}" class="btn btn-sm btn-warning">Edit</a>
-                        <form action="{{ route('warehouse_stocks.destroy', $stock->id) }}" method="POST" style="display:inline-block;">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</button>
-                        </form>
-                    </td>
-                </tr>
-                @endforeach
-            </tbody>
-        </table>
+        <form method="GET" action="{{ route('warehouse_stocks.index') }}" class="row g-2 mb-3">
+            <div class="col-12 col-md-2">
+                <label class="form-label fw-bold">Stock Type:</label>
+                <select name="stock_type" class="form-control form-control-sm">
+                    <option value="all" {{ request('stock_type') == 'all' ? 'selected' : '' }}>All</option>
+                    <option value="shop" {{ request('stock_type') == 'shop' ? 'selected' : '' }}>Shop</option>
+                    <option value="warehouse" {{ request('stock_type') == 'warehouse' ? 'selected' : '' }}>Warehouse</option>
+                </select>
+            </div>
+
+            <div class="col-12 col-md-2">
+                <button type="submit" class="btn btn-success btn-sm w-100">Filter</button>
+            </div>
+
+            <div class="col-12 col-md-2">
+                <a href="{{ route('warehouse_stocks.index') }}" class="btn btn-secondary btn-sm w-100">Reset</a>
+            </div>
+        </form>
+        <div class="table-responsive stock-table-wrapper">
+            <table class="table table-bordered table-striped table-sm" id="stockTable">
+                <thead>
+                    <tr>
+                        <th>NO#</th>
+                        <th>Date</th>
+                        <th>Location</th>
+                        <th>Product</th>
+                        <th>Unit</th>
+                        <th>Brand</th>
+                        <th>Price</th>
+                        <th>Shop Stock</th> <!-- new -->
+                        <th>Warehouse Stock</th> <!-- new -->
+                        <th>Total Stock</th> <!-- new -->
+                        <th>Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($stocks as $stock)
+                    <tr>
+                        <td>{{ $loop->iteration }}</td>
+                        <td>{{ $stock->created_at->format('d M Y') }}</td>
+                        <td>{{ $stock->warehouse->warehouse_name ?? '— Shop —' }}</td>
+                        <td>{{ $stock->product->item_name }}</td>
+                        <td>{{ $stock->product->unit_id }}</td>
+                        <td>{{ $stock->product->brand->name ?? '—' }}</td>
+                        <td>{{ $stock->product->price }}</td>
+
+                        <!-- new computed fields -->
+                        <td class="text-center">{{ number_format($stock->shop_stock ?? 0, 2) }}</td>
+                        <td class="text-center">{{ number_format($stock->warehouse_stock ?? ($stock->quantity ?? 0), 2) }}</td>
+                        <td class="text-center fw-bold">{{ number_format($stock->total_stock ?? ($stock->quantity ?? 0), 2) }}</td>
+
+                        <!-- existing row-specific quantity (the single record's quantity) -->
+
+                        <td>{{ $stock->remarks }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
 @endsection
 
 @section('scripts')
+
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+
 <script>
-    $(document).ready(function () {
-        $('#stockTable').DataTable();
+    $(document).ready(function() {
+        $('#stockTable').DataTable({
+            paging: true,
+            pageLength: 25,
+            searching: true,
+            ordering: false,
+            responsive: true,
+            scrollX: false
+        });
+    });
+</script>
+
+<script>
+    $(function() {
+        // Make rows clickable to toggle selection for "Export Selected"
+        $('#stockTable tbody').on('click', 'tr', function(e) {
+            // ignore clicks on interactive elements if any
+            if ($(e.target).is('a,button,input,select,textarea')) return;
+            $(this).toggleClass('row-selected');
+            $(this).css('background-color', $(this).hasClass('row-selected') ? '#d9edf7' : '');
+        });
+
+        // helper to clean numeric text into Number where possible
+        function toNumber(txt) {
+            if (txt === null || txt === undefined) return '';
+            var s = String(txt).trim();
+            s = s.replace(/,/g, '').replace(/PKR/ig, '').replace(/[^\d\.\-]/g, '');
+            if (s === '' || s === '-') return '';
+            var n = Number(s);
+            return isNaN(n) ? txt : n;
+        }
+
+        // parse a table row (returns array in export column order)
+        function parseStockRow(tr) {
+            // columns: # | Date | Warehouse | Product | Shop Stock | Warehouse Stock | Total Stock | Remarks
+            var $tds = $(tr).find('td');
+            var date = $tds.eq(1).text().trim();
+            var warehouse = $tds.eq(2).text().trim();
+            var product = $tds.eq(3).text().trim();
+            var shopStock = toNumber($tds.eq(4).text());
+            var warehouseStock = toNumber($tds.eq(5).text());
+            var totalStock = toNumber($tds.eq(6).text());
+            var remarks = $tds.eq(7).text().trim();
+            return [date, warehouse, product, shopStock, warehouseStock, totalStock, remarks];
+        }
+
+        // build workbook and download
+        function buildAndDownload(rowsArray, filename) {
+            var header = ['Date', 'Warehouse', 'Product', 'Shop Stock', 'Warehouse Stock', 'Total Stock', 'Remarks'];
+            var aoa = [header].concat(rowsArray);
+            var ws = XLSX.utils.aoa_to_sheet(aoa);
+            // set column widths
+            ws['!cols'] = [{
+                wpx: 80
+            }, {
+                wpx: 140
+            }, {
+                wpx: 200
+            }, {
+                wpx: 80
+            }, {
+                wpx: 100
+            }, {
+                wpx: 100
+            }, {
+                wpx: 180
+            }];
+            var wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'WarehouseStock');
+            XLSX.writeFile(wb, filename);
+        }
+
+        // Export ALL
+        $('#exportStockAllBtn').on('click', function() {
+            var rows = [];
+            $('#stockTable tbody tr').each(function() {
+                // skip any hidden rows
+                if ($(this).is(':hidden')) return;
+                rows.push(parseStockRow(this));
+            });
+            if (rows.length === 0) {
+                alert('No rows to export.');
+                return;
+            }
+            var ts = new Date().toISOString().replace(/[:\-T]/g, '').slice(0, 14);
+            buildAndDownload(rows, 'warehouse_stock_all_' + ts + '.xlsx');
+        });
+
+        // Export SELECTED
+        $('#exportStockSelectedBtn').on('click', function() {
+            var sel = [];
+            $('#stockTable tbody tr.row-selected').each(function() {
+                sel.push(parseStockRow(this));
+            });
+            if (sel.length === 0) {
+                // friendly message
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'No Selection',
+                        text: 'Select rows by clicking them, then click Export Selected.'
+                    });
+                } else {
+                    alert('Select rows by clicking them, then click Export Selected.');
+                }
+                return;
+            }
+            var ts = new Date().toISOString().replace(/[:\-T]/g, '').slice(0, 14);
+            buildAndDownload(sel, 'warehouse_stock_selected_' + ts + '.xlsx');
+        });
     });
 </script>
 @endsection

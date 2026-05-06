@@ -6,38 +6,28 @@ use Illuminate\Database\Eloquent\Model;
 
 class PurchaseReturn extends Model
 {
-    protected $fillable = [
-    'vendor_id',
-    'warehouse_id',
-    'return_invoice',
-    'return_date',
-    'return_reason',
-    'transport',
-    'vehicle_no',
-    'driver_name',
-    'delivery_person',
-    'bill_amount',
-    'item_discount',
-    'extra_discount',
-    'net_amount',
-    'paid',
-    'balance',
-    'remarks',
-];
- public function vendor()
+    protected $guarded = [];
+
+    // ✅ Each return belongs to a vendor
+    public function vendor()
     {
-        return $this->belongsTo(Vendor::class);
+        return $this->belongsTo(Vendor::class, 'vendor_id', 'id');
     }
 
-    // ✅ Warehouse Relationship
+    // ✅ Each return belongs to a warehouse
     public function warehouse()
     {
-        return $this->belongsTo(Warehouse::class);
+        return $this->belongsTo(Warehouse::class, 'warehouse_id', 'id');
     }
 
-    // ✅ Return Items
+    // ✅ Each return has many items
     public function items()
     {
-        return $this->hasMany(PurchaseReturnItem::class);
+        return $this->hasMany(PurchaseReturnItem::class, 'purchase_return_id', 'id');
+    }
+
+    public function purchase()
+    {
+        return $this->belongsTo(\App\Models\Purchase::class, 'purchase_id');
     }
 }

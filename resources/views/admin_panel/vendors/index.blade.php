@@ -92,41 +92,42 @@
 
 @endsection
 
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-
+@section('scripts')
 <script>
-$(document).ready(function () {
-    // Initialize DataTable
-    $('.datanew').DataTable();
+    $(document).ready(function() {
+        // Initialize DataTable
+        $('.datanew').DataTable();
 
-    // Clear modal fields function
-    window.clearVendor = function () {
-        $('#vendor_id').val('');
-        $('#vname').val('');
-        $('#opening_balance').val('').prop('readonly', false);  // Allow editing
-        $('#vphone').val('');
-        $('#vaddress').val('');
-    };
+        // Clear modal fields
+        window.clearVendor = function() {
+            $('#vendor_id').val('');
+            $('#vname').val('');
+            $('#opening_balance').val('').prop('readonly', false);
+            $('#vphone').val('');
+            $('#vaddress').val('');
+        };
 
-    // Edit Vendor functionality
-    $('.btn-edit-vendor').click(function () {
-        var row = $(this).closest('tr');
-        var id = $(this).data('id');
-        var name = row.find('td:eq(1)').text().trim();
-        var phone = row.find('td:eq(2)').text().trim();
-        var balance = row.find('td:eq(3)').text().trim();
-        var address = row.find('td:eq(4)').text().trim();
+        // ✅ Use event delegation for dynamically generated buttons
+        $(document).on('click', '.btn-edit-vendor', function() {
+            var row = $(this).closest('tr');
+            var id = $(this).data('id');
+            var name = row.find('td:eq(1)').text().trim();
+            var phone = row.find('td:eq(2)').text().trim();
+            var balance = row.find('td:eq(3)').text().trim();
+            var address = row.find('td:eq(4)').text().trim();
 
-        // Populate modal with vendor data
-        $('#vendor_id').val(id);
-        $('#vname').val(name);
-        $('#vphone').val(phone);
-        $('#opening_balance').val(balance).prop('readonly', true);  // Prevent editing opening balance
-        $('#vaddress').val(address);
+            // Populate modal
+            $('#vendor_id').val(id);
+            $('#vname').val(name);
+            $('#vphone').val(phone);
+            $('#opening_balance').val(balance).prop('readonly', true);
+            $('#vaddress').val(address);
 
-        var modal = new bootstrap.Modal(document.getElementById('vendorModal'));
-        modal.show();  // Show the modal
+            // Show modal
+            var modal = new bootstrap.Modal(document.getElementById('vendorModal'));
+            modal.show();
+        });
     });
-});
 </script>
 
+@endsection

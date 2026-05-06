@@ -14,6 +14,7 @@ class CreateCustomerPaymentsTable extends Migration
             $table->unsignedBigInteger('customer_id');
             $table->unsignedBigInteger('admin_or_user_id');
             $table->decimal('amount', 12, 2);
+            $table->enum('adjustment_type', ['plus', 'minus'])->default('minus');
             $table->string('payment_method')->nullable();
             $table->date('payment_date')->nullable();
             $table->text('note')->nullable();

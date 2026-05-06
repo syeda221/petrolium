@@ -10,6 +10,7 @@ class VendorPayment extends Model
 {
     protected $fillable = [
         'vendor_id',
+        'account_id',
         'admin_or_user_id',
         'payment_date',
         'amount',

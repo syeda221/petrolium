@@ -7,14 +7,16 @@ use Illuminate\Database\Eloquent\Model;
 
 class PurchaseReturnItem extends Model
 {
-    protected $fillable = [
-        'purchase_return_id',
-        'product_id',
-        'price',
-        'item_discount',
-        'qty',
-        'unit',
-        'line_total',
-    ];
-}
+    protected $guarded = [];
 
+    public function purchaseReturn()
+    {
+        return $this->belongsTo(PurchaseReturn::class, 'purchase_return_id', 'id');
+    }
+
+    // ✅ Belongs to product
+    public function product()
+    {
+        return $this->belongsTo(Product::class, 'product_id', 'id');
+    }
+}

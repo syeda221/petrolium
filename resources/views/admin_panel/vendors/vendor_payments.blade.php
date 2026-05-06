@@ -28,23 +28,31 @@
                     <table class="table datanew">
                         <thead>
                             <tr>
-                                <th>#</th>
+                                <th>Payment No #</th>
                                 <th>Vendor</th>
                                 <th>Amount</th>
                                 <th>Date</th>
                                 <th>Method</th>
                                 <th>Note</th>
+                                <th>Action</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach($payments as $key => $pay)
                             <tr>
-                                <td>{{ $key+1 }}</td>
+                                <td>PAY-{{ $key+1 }}</td>
                                 <td>{{ $pay->vendor->name ?? 'N/A' }}</td>
                                 <td>{{ number_format($pay->amount, 2) }}</td>
                                 <td>{{ $pay->payment_date }}</td>
                                 <td>{{ $pay->payment_method }}</td>
                                 <td>{{ $pay->note }}</td>
+                                <td>
+                                    <a href="{{ route('vendor.payment.receipt', $pay->id) }}"
+                                    target="_blank"
+                                    class="btn btn-sm btn-primary">
+                                        Print
+                                    </a>
+                                </td>
                             </tr>
                             @endforeach
                         </tbody>
@@ -113,8 +121,8 @@
 </div>
 
 @endsection
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
+@section('scripts')
 <script>
 $(document).ready(function () {
     $('#vendor_id').on('change', function () {
@@ -136,3 +144,4 @@ $(document).ready(function () {
     });
 });
 </script>
+@endsection

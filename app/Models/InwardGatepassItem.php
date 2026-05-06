@@ -8,8 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class InwardGatepassItem extends Model
 {
     use HasFactory;
-
-      protected $fillable = ['inward_gatepass_id','product_id','qty'];
+    protected $guarded = [];
 
     public function gatepass()
     {

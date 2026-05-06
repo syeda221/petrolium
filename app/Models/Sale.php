@@ -7,12 +7,26 @@ use Illuminate\Database\Eloquent\Model;
 
 class Sale extends Model
 {
-    protected $fillable = [
-        'customer', 'product', 'reference', 'product_code', 'brand', 'unit', 'per_price', 
-        'per_discount', 'qty', 'per_total', 'total_amount_Words', 'total_bill_amount',
-        'total_extradiscount', 'total_net', 'cash', 'card', 'change', 'total_discount',
-        'total_subtotal', 'total_items','color'
+    protected $guarded = [];
+    protected $casts = [
+        'total_items' => 'float',
     ];
+
+    public static function generateInvoiceNo()
+    {
+        $prefix = 'SAL-';
+
+        $lastInvoice = self::orderBy('id', 'desc')->first();
+        $lastNumber = 0;
+
+        if ($lastInvoice && $lastInvoice->invoice_no) {
+            $lastNumber = (int)substr($lastInvoice->invoice_no, strlen($prefix));
+        }
+
+        $newNumber = str_pad($lastNumber + 1, 3, '0', STR_PAD_LEFT);
+
+        return $prefix . $newNumber;
+    }
 
     public function customer_relation()
     {

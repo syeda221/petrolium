@@ -98,7 +98,7 @@
 
 @endsection
 
-@push('scripts')
+@section('scripts')
 <script>
 function clearBiltyForm() {
     $('#biltyModal select[name="vendor_id"]').val('');
@@ -112,4 +112,4 @@ function clearBiltyForm() {
 
 $('.datanew').DataTable();
 </script>
-@endpush
+@endsection

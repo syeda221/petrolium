@@ -15,11 +15,12 @@
 
             <div class="card mt-3">
                 <div class="card-body">
-                    <table class="table datanew">
+                    <table id="default-datatable" class="table ">
                         <thead>
                             <tr>
                                 <th>#</th>
                                 <th>Customer</th>
+                                <th>Opening Balance</th>
                                 <th>Previous Balance</th>
                                 <th>Closing Balance</th>
                                 <th>Created At</th>
@@ -30,6 +31,7 @@
                             <tr>
                                 <td>{{ $key+1 }}</td>
                                 <td>{{ $ledger->customer->customer_name ?? 'N/A' }}</td>
+                                <td>{{ number_format($ledger->opening_balance, 2) }}</td>
                                 <td>{{ number_format($ledger->previous_balance, 2) }}</td>
                                 <td>{{ number_format($ledger->closing_balance, 2) }}</td>
                                 <td>{{ $ledger->created_at->format('d-m-Y') }}</td>
@@ -46,8 +48,25 @@
 
 @endsection
 
-@push('scripts')
+@section('scripts')
+ 
 <script>
-$('.datanew').DataTable();
+    $('.datanew').DataTable();
 </script>
-@endpush
+<script>
+     $(document).ready(function() {
+         $('#default-datatable').DataTable({
+             "pageLength": 10,
+             "lengthMenu": [5, 10, 25, 50, 100],
+             "order": [
+                 [0, 'desc']
+             ],
+             "language": {
+                 "search": "Search Category:",
+                 "lengthMenu": "Show _MENU_ entries"
+             }
+         });
+     });
+ </script>
+
+ @endsection

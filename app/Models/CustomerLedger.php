@@ -7,12 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class CustomerLedger extends Model
 {
-    protected $fillable = [
-        'customer_id',
-        'admin_or_user_id',
-        'previous_balance',
-        'closing_balance',
-    ];
+    protected $guarded = [];
+
 
     public function customer()
     {

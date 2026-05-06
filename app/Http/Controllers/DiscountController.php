@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use App\Models\ProductDiscount;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Database\QueryException;
 
 class DiscountController extends Controller
 {
@@ -27,90 +29,104 @@ class DiscountController extends Controller
         return view('admin_panel.product.discount.discount_create', compact('products'));
     }
 
-    // Store Discount
-    // public function store(Request $request)
-    // {
-        
-    //     foreach ($request->product_id as $key => $productId) {
-    //         $product = Product::find($productId);
-
-    //         $discountPercentage = $request->discount_percentage[$key] ?? 0;
-    //         $discountAmount = $request->discount_amount[$key] ?? 0;
-    //         $status = $request->status[$key] ?? 1;
-
-    //         $finalPrice = $product->price; // original price
-    //         if ($discountPercentage > 0) {
-    //             $finalPrice = $product->price - ($product->price * $discountPercentage / 100);
-    //         } elseif ($discountAmount > 0) {
-    //             $finalPrice = $product->price - $discountAmount;
-    //         }
-
-    //         ProductDiscount::updateOrCreate(
-    //             ['product_id' => $productId],
-    //             [
-    //                 'actual_price' => $product->price,
-    //                 'discount_percentage' => $discountPercentage,
-    //                 'discount_amount' => $discountAmount,
-    //                 'total_discount'     => $totalDiscount,
-    //                 'final_price' => $finalPrice,
-    //                 'date'               => $date,  
-    //                 'status' => $status
-    //             ]
-    //         );
-    //     }
-
-    //     return redirect()->route('discount.index')->with('success', 'Discounts saved successfully.');
-    // }
-// Store Discount
-public function store(Request $request)
-{
-    $request->validate([
-        'product_id.*'          => ['required','integer','exists:products,id'],
-        'discount_percentage.*' => ['nullable','numeric','min:0','max:100'],
-        'discount_amount.*'     => ['nullable','numeric','min:0'],
-        'date.*'                => ['required','date'],
-        'status.*'              => ['required','in:0,1'],
-    ]);
-
-    foreach ($request->product_id as $key => $productId) {
-        $product = Product::findOrFail($productId);
-
-        $discountPercentage = (float)($request->discount_percentage[$key] ?? 0);
-        $discountAmount     = (float)($request->discount_amount[$key] ?? 0);
-        $status             = (int)($request->status[$key] ?? 1);
-        $date               = $request->date[$key];
-
-        $percDiscount  = round($product->price * $discountPercentage / 100, 2);
-        $totalDiscount = round($percDiscount + $discountAmount, 2);
-
-        if ($totalDiscount > $product->price) {
-            return back()
-                ->withErrors([
-                    "discount_percentage.$key" => "Total discount exceeds original price for '{$product->item_name}'.",
-                    "discount_amount.$key"     => "Total discount exceeds original price for '{$product->item_name}'.",
-                ])
-                ->withInput();
-        }
-
-        $finalPrice = round($product->price - $totalDiscount, 2);
-
-        ProductDiscount::updateOrCreate(
-            ['product_id' => $productId],
-            [
-                'actual_price'        => $product->price,
-                'discount_percentage' => $discountPercentage,
-                'discount_amount'     => $discountAmount,
-                'total_discount'      => $totalDiscount,
-                'final_price'         => $finalPrice,
-                'date'                => $date,  // ✅ only one line
-                'status'              => $status,
-            ]
-        );
+    /**
+     * Generate a 6-digit code (leading zeros preserved).
+     */
+    private function makeSixDigitCode(): string
+    {
+        return str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     }
 
-    return redirect()->route('discount.index')->with('success', 'Discounts saved successfully.');
-}
+    /**
+     * Get a unique 6-digit code with small retry loop.
+     */
+    private function generateUniqueDiscountCode(int $maxRetries = 5): string
+    {
+        for ($i = 0; $i < $maxRetries; $i++) {
+            $code = $this->makeSixDigitCode();
+            if (!ProductDiscount::where('discount_code', $code)->exists()) {
+                return $code;
+            }
+        }
+        // final attempt even if exists-check collided; insert will catch if duplicate
+        return $this->makeSixDigitCode();
+    }
 
+    // Store Discount
+    public function store(Request $request)
+    {
+        
+        $request->validate([
+            'product_id.*'          => ['required','integer','exists:products,id'],
+            'discount_percentage.*' => ['nullable','numeric','min:0','max:100'],
+            'discount_amount.*'     => ['nullable','numeric','min:0'],
+            'date.*'                => ['required','date'],
+            'status.*'              => ['required','in:0,1'],
+        ]);
+
+        DB::beginTransaction();
+        try {
+            foreach ($request->product_id as $key => $productId) {
+                $product = Product::findOrFail($productId);
+
+                $discountPercentage = (float)($request->discount_percentage[$key] ?? 0);
+                $discountAmount     = (float)($request->discount_amount[$key] ?? 0);
+                $status             = (int)($request->status[$key] ?? 1);
+                $date               = $request->date[$key];
+
+                $percDiscount  = round($product->price * $discountPercentage / 100, 2);
+                $totalDiscount = round($percDiscount + $discountAmount, 2);
+
+                if ($totalDiscount > $product->price) {
+                    return back()
+                        ->withErrors([
+                            "discount_percentage.$key" => "Total discount exceeds original price for '{$product->item_name}'.",
+                            "discount_amount.$key"     => "Total discount exceeds original price for '{$product->item_name}'.",
+                        ])
+                        ->withInput();
+                }
+
+                $finalPrice = round($product->price - $totalDiscount, 2);
+
+                // retry on rare unique collision at DB level
+                $retries = 0;
+                while (true) {
+                    try {
+                        ProductDiscount::updateOrCreate(
+                            ['product_id' => $productId],
+                            [
+                                // har dafa naya barcode (6-digit) assign hoga:
+                                'discount_code'       => $this->generateUniqueDiscountCode(),
+                                'actual_price'        => $product->price,
+                                'discount_percentage' => $discountPercentage,
+                                'discount_amount'     => $discountAmount,
+                                'total_discount'      => $totalDiscount,
+                                'final_price'         => $finalPrice,
+                                'date'                => $date,
+                                'status'              => $status,
+                            ]
+                        );
+                        break;
+                    } catch (QueryException $e) {
+                        // Duplicate code? retry few times.
+                        $isDuplicate = str_contains($e->getMessage(), 'Duplicate entry') // MySQL
+                                   || ($e->errorInfo[0] ?? null) === '23505';             // Postgres
+                        if ($isDuplicate && $retries < 5) {
+                            $retries++;
+                            continue;
+                        }
+                        throw $e;
+                    }
+                }
+            }
+
+            DB::commit();
+            return redirect()->route('discount.index')->with('success', 'Discounts saved successfully with unique 6-digit barcodes.');
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return back()->withErrors('Failed to save discounts: '.$th->getMessage())->withInput();
+        }
+    }
 
     // Toggle Status Active/Inactive
     public function toggleStatus($id)

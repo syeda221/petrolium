@@ -11,600 +11,592 @@ use App\Models\PurchaseItem;
 use App\Models\Stock;
 use Illuminate\Support\Facades\DB;
 use App\Models\VendorLedger;
-use App\Models\Inwardgatepass;
+use App\Models\InwardGatepass;
+use App\Models\PurchaseReturn;
+use App\Models\WarehouseStock;
 use Illuminate\Support\Facades\Auth;
 
 class PurchaseController extends Controller
-{ 
-        public function index()
-    {
-        $Purchase = Purchase::with(['branch', 'warehouse', 'vendor', 'items'])->get();
-        return view("admin_panel.purchase.index", compact('Purchase'));
-    }
-public function addBill($gatepassId)
 {
-    // Fetch the gatepass along with its related items and products
-    $gatepass = InwardGatepass::with('items.product')->findOrFail($gatepassId);
+    public function index(Request $request)
+    {
+        /* ================= NORMAL PURCHASE ================= */
+        $purchaseQuery = Purchase::with([
+            'branch',
+            'warehouse',
+            'vendor',
+            'items.product',
+            'return'
+        ]);
 
-    // Pass the gatepass data to the view
-    return view('admin_panel.inward.add_bill', compact('gatepass'));
-}
+        if ($request->start_date && $request->end_date) {
+            $purchaseQuery->whereBetween('purchase_date', [
+                $request->start_date,
+                $request->end_date
+            ]);
+        }
 
-      public function add_purchase()
+        $purchases = $purchaseQuery->get();
+
+        /* ================= INWARD GATEPASS AS PURCHASE ================= */
+        $inwardQuery = InwardGatepass::with([
+            'branch',
+            'warehouse',
+            'vendor',
+            'items.product'
+        ])
+            ->where('status', 'linked')
+            ->where('bill_status', 'billed');
+
+        if ($request->start_date && $request->end_date) {
+            $inwardQuery->whereBetween('gatepass_date', [
+                $request->start_date,
+                $request->end_date
+            ]);
+        }
+
+        $inwards = $inwardQuery->get();
+
+        /* ================= MERGE ================= */
+        $Purchase = $purchases->concat($inwards);
+
+        /* ================= SORT BY DATE ================= */
+        $Purchase = $Purchase->sortByDesc(function ($row) {
+            return $row instanceof \App\Models\Purchase
+                ? $row->purchase_date
+                : $row->gatepass_date;
+        });
+
+        return view('admin_panel.purchase.index', compact('Purchase'))
+            ->with([
+                'start_date' => $request->start_date,
+                'end_date'   => $request->end_date,
+            ]);
+    }
+
+
+    public function addBill($gatepassId)
+    {
+        // Fetch the gatepass along with its related items and products
+        $gatepass = InwardGatepass::with('items.product')->findOrFail($gatepassId);
+        return view('admin_panel.inward.add_bill', compact('gatepass'));
+    }
+
+    public function add_purchase()
     {
         // $userId = Auth::id();
-      $Purchase = Purchase::get();
-      $Vendor = Vendor::get();
-      $Warehouse = Warehouse::get();
-         return view('admin_panel.purchase.add_purchase',compact('Vendor',"Warehouse",'Purchase'));
-    }
-public function store(Request $request, $gatepassId = null)
-{
-    // Agar gatepass ID nahi hai, tou direct purchase karenge
-    if ($gatepassId) {
-        // Fetch the gatepass and check if a bill is already linked
-        $gatepass = InwardGatepass::with('purchase')->findOrFail($gatepassId);
-
-        // Agar gatepass pe already purchase hai, tou error return karenge
-        if ($gatepass->purchase) {
-            return back()->with('error', 'This gatepass already has an associated bill.');
-        }
-    } else {
-        // Agar gatepass nahi hai, tou direct purchase karenge
-        $gatepass = null; // No gatepass for direct purchase
+        $Purchase = Purchase::get();
+        $Vendor = Vendor::get();
+        $Warehouse = Warehouse::get();
+        return view('admin_panel.purchase.add_purchase', compact('Vendor', "Warehouse", 'Purchase'));
     }
 
-    // Validate the incoming request data
-    $validated = $request->validate([
-        'invoice_no'      => 'nullable|string',
-        'vendor_id'        => 'nullable|exists:vendors,id',
-        'purchase_date'    => 'nullable|date',
-        'warehouse_id'     => 'nullable|exists:warehouses,id',
-        'note'             => 'nullable|string',
-        'discount'         => 'nullable|numeric|min:0',
-        'extra_cost'       => 'nullable|numeric|min:0',
-        'product_id'       => 'required|array',
-        'product_id.*'     => 'required|exists:products,id',
-        'qty'              => 'required|array',
-        'qty.*'            => 'required|numeric|min:1',
-        'price'            => 'required|array',
-        'price.*'          => 'required|numeric|min:0',
-        'unit'             => 'required|array',
-        'unit.*'           => 'required|string',
-        'item_discount'    => 'nullable|array', // Update here to nullable
-        'item_discount.*'  => 'nullable|numeric|min:0', // Update here to nullable
-    ]);
 
-    DB::transaction(function () use ($validated, $request, $gatepass) {
-        // Generate the next invoice number
-        $lastInvoice = Purchase::latest()->value('invoice_no');
-        $nextInvoice = $lastInvoice 
-            ? 'INV-' . str_pad(((int) filter_var($lastInvoice, FILTER_SANITIZE_NUMBER_INT)) + 1, 5, '0', STR_PAD_LEFT)
-            : 'INV-00001';
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'vendor_id'       => 'nullable|exists:vendors,id',
+            'purchase_date'   => 'nullable|date',
+            'purchase_to'     => 'required|in:shop,warehouse',
+            'warehouse_id'    => 'nullable|required_if:purchase_to,warehouse|exists:warehouses,id',
 
-        // Create a new purchase record
-        $purchase = Purchase::create([
-            'branch_id'       => auth()->user()->id,
-            'warehouse_id'    => $validated['warehouse_id'],
-            'vendor_id'       => $validated['vendor_id'],
-            'purchase_date'   => $validated['purchase_date'] ?? now(),
-            'invoice_no'      => $validated['invoice_no'] ?? $nextInvoice,
-            'note'             => $validated['note'] ?? null,
-            'subtotal'        => 0,
-            'discount'        => 0,
-            'extra_cost'      => 0,
-            'net_amount'      => 0,
-            'paid_amount'     => 0,
-            'due_amount'      => 0,
+            'note'            => 'nullable|string',
+            'discount'        => 'nullable|numeric|min:0',
+            'extra_cost'      => 'nullable|numeric|min:0',
+
+            'product_id'      => 'array',
+            'product_id.*'    => 'nullable|exists:products,id',
+
+            'qty'             => 'array',
+            'qty.*'           => 'nullable|required_with:product_id.*|numeric|min:1',
+
+            'price'           => 'array',
+            'price.*'         => 'nullable|required_with:product_id.*|numeric|min:0',
+
+            'unit'            => 'array',
+            'unit.*'          => 'nullable|required_with:product_id.*|string',
+
+            'item_discount'   => 'nullable|array',
+            'item_discount.*' => 'nullable|numeric|min:0',
+
+            'item_disc'       => 'nullable|array',
+            'item_disc.*'     => 'nullable|numeric|min:0',
+
+            'item_note'   => 'nullable|array',
+            'item_note.*' => 'nullable|string',
         ]);
 
-        $subtotal = 0;
+        DB::transaction(function () use ($validated, $request) {
 
-        // Store the purchase items and update stock
-        foreach ($validated['product_id'] as $index => $productId) {
-            $qty = $validated['qty'][$index] ?? 0;  
-            $price = $validated['price'][$index] ?? 0;  
+            /* ================= PURCHASE MASTER ================= */
 
-            if (empty($productId) || empty($qty) || empty($price)) {
-                continue;
-            }
+            $invoiceNo = Purchase::generateInvoiceNo();
 
-            $disc = $validated['item_discount'][$index] ?? 0;
-            $unit = $validated['unit'][$index] ?? null;
-            $lineTotal = ($price * $qty) - $disc;
+            $purchase = Purchase::create([
+                'branch_id'     => auth()->id(),
+                'vendor_id'     => $validated['vendor_id'] ?? null,
+                'purchase_date' => $validated['purchase_date'] ?? now(),
+                'invoice_no'    => $invoiceNo,
 
-            PurchaseItem::create([
-                'purchase_id'     => $purchase->id,
-                'product_id'      => $productId,
-                'unit'            => $unit,
-                'price'           => $price,
-                'item_discount'   => $disc,
-                'qty'             => $qty,
-                'line_total'      => $lineTotal,
+                'purchase_to'   => $validated['purchase_to'], // 🔥 shop | warehouse
+                'warehouse_id'  => $validated['purchase_to'] === 'warehouse'
+                    ? $validated['warehouse_id']
+                    : null,
+
+                'note'          => $validated['note'] ?? null,
+
+                'subtotal'      => 0,
+                'discount'      => 0,
+                'extra_cost'    => 0,
+                'net_amount'    => 0,
+                'paid_amount'   => 0,
+                'due_amount'    => 0,
             ]);
 
-            $subtotal += $lineTotal;
+            $subtotal = 0;
 
-            // Update stock or create new stock entry
-            $stock = Stock::where('branch_id', auth()->user()->id)
-                ->where('warehouse_id', $validated['warehouse_id'])
-                ->where('product_id', $productId)
-                ->first();
+            // discount source (new or old)
+            $itemDiscounts = $validated['item_discount'] ?? $request->input('item_disc', []);
 
-            if ($stock) {
-                $stock->qty += $qty;
-                $stock->save();
-            } else {
-                Stock::create([
-                    'branch_id'       => auth()->user()->id,
-                    'warehouse_id'    => $validated['warehouse_id'],
-                    'product_id'      => $productId,
-                    'qty'             => $qty,
+            /* ================= ITEMS LOOP ================= */
+
+            foreach (($validated['product_id'] ?? []) as $index => $productId) {
+
+                $qty   = $validated['qty'][$index] ?? 0;
+                $price = $validated['price'][$index] ?? 0;
+
+                if (!$productId || !$qty || !is_numeric($price)) {
+                    continue;
+                }
+
+                $discPerPiece = isset($itemDiscounts[$index])
+                    ? floatval($itemDiscounts[$index])
+                    : 0;
+
+                $unitPriceAfterDisc = max(0, $price - $discPerPiece);
+                $lineTotal = $unitPriceAfterDisc * $qty;
+
+                PurchaseItem::create([
+                    'purchase_id'   => $purchase->id,
+                    'product_id'    => $productId,
+                    'unit'          => $validated['unit'][$index] ?? null,
+                    'price'         => $price,
+                    'item_discount' => $discPerPiece,
+                    'qty'           => $qty,
+                    'note'          => $request->item_note[$index] ?? null, // ✅ NOTE
+                    'line_total'    => $lineTotal,
                 ]);
+
+
+                $subtotal += $lineTotal;
+
+                /* ================= STOCK UPDATE ================= */
+
+                if ($validated['purchase_to'] === 'shop') {
+
+                    // ➕ SHOP STOCK
+                    $stock = Stock::where('branch_id', auth()->id())
+                        ->where('product_id', $productId)
+                        ->first();
+
+                    if ($stock) {
+                        $stock->qty += $qty;
+                        $stock->save();
+                    } else {
+                        Stock::create([
+                            'branch_id'  => auth()->id(),
+                            'product_id' => $productId,
+                            'qty'        => $qty,
+                        ]);
+                    }
+                } else {
+
+                    // ➕ WAREHOUSE STOCK
+                    $warehouseId = $validated['warehouse_id'];
+
+                    $warehouseStock = WarehouseStock::where('warehouse_id', $warehouseId)
+                        ->where('product_id', $productId)
+                        ->first();
+
+                    if ($warehouseStock) {
+                        $warehouseStock->quantity += $qty;
+                        $warehouseStock->save();
+                    } else {
+                        WarehouseStock::create([
+                            'warehouse_id' => $warehouseId,
+                            'product_id'   => $productId,
+                            'quantity'     => $qty,
+                            'remarks'      => 'Purchase Entry',
+                        ]);
+                    }
+                }
             }
-        }
 
-        // Final calculations
-        $discount = $request->discount ?? 0;
-        $extraCost = $request->extra_cost ?? 0;
-        $netAmount = ($subtotal - $discount) + $extraCost;
+            /* ================= TOTALS ================= */
 
-        // Update the purchase totals
-        $purchase->update([
-            'subtotal'    => $subtotal,
-            'discount'    => $discount,
-            'extra_cost'  => $extraCost,
-            'net_amount'  => $netAmount,
-            'due_amount'  => $netAmount,
+            $discount  = $request->discount ?? 0;
+            $extraCost = $request->extra_cost ?? 0;
+            $netAmount = ($subtotal - $discount) + $extraCost;
+
+            $purchase->update([
+                'subtotal'   => $subtotal,
+                'discount'   => $discount,
+                'extra_cost' => $extraCost,
+                'net_amount' => $netAmount,
+                'due_amount' => $netAmount,
+            ]);
+
+            /* ================= VENDOR LEDGER ================= */
+
+            $prevLedger = VendorLedger::where('vendor_id', $validated['vendor_id'] ?? null)->first();
+            $opening    = $prevLedger ? $prevLedger->closing_balance : 0;
+            $closing    = $opening + $netAmount;
+
+            VendorLedger::updateOrCreate(
+                ['vendor_id' => $validated['vendor_id'] ?? null],
+                [
+                    'admin_or_user_id' => auth()->id(),
+                    'opening_balance'  => $opening,
+                    'previous_balance' => $subtotal,
+                    'closing_balance'  => $closing,
+                ]
+            );
+        });
+
+        return redirect()
+            ->route('Purchase.home')
+            ->with('success', 'Purchase has been successfully added');
+    }
+
+
+    public function store_inwardbill(Request $request, $gatepassId)
+    {
+        $validated = $request->validate([
+            'vendor_id'       => 'required|exists:vendors,id',
+            'received_in'     => 'required|in:shop,warehouse',
+            'warehouse_id'    => 'nullable|required_if:received_in,warehouse|exists:warehouses,id',
+            'purchase_date'   => 'required|date',
+
+            'discount'        => 'nullable|numeric|min:0',
+            'extra_cost'      => 'nullable|numeric|min:0',
+            'subtotal'        => 'nullable|numeric|min:0',
+            'net_amount'      => 'nullable|numeric|min:0',
+
+            'product_id'      => 'array',
+            'product_id.*'    => 'nullable|exists:products,id',
+            'qty'             => 'array',
+            'qty.*'           => 'nullable|numeric|min:1',
+            'price'           => 'array',
+            'price.*'         => 'nullable|numeric|min:0',
+
+            // ✅ ADD THESE
+            'item_discount'           => 'nullable|array',
+            'item_discount.*'         => 'nullable|numeric|min:0',
+            'discount_type'           => 'nullable|array',
+            'discount_type.*'         => 'nullable|in:pkr,percent',
         ]);
 
-        // Vendor Ledger Update
-        $previousLedger = VendorLedger::where('vendor_id', $validated['vendor_id'])->first();
-        $openingBalance = $previousLedger ? $previousLedger->closing_balance : 0;
-        $newClosingBalance = $openingBalance + $netAmount;
 
-        VendorLedger::updateOrCreate(
-            ['vendor_id' => $validated['vendor_id']],
-            [
-                'vendor_id'         => $validated['vendor_id'],
-                'admin_or_user_id'  => auth()->id(),
-                'previous_balance'  => $subtotal,
-                'closing_balance'   => $newClosingBalance,
-                'opening_balance'   => $openingBalance,
-            ]
-        );
+        DB::transaction(function () use ($validated, $gatepassId, $request) {
 
-        // Link the gatepass to the purchase if provided
-        if ($gatepass) {
-            $gatepass->purchase_id = $purchase->id;
-            $gatepass->status = 'linked'; 
-            $gatepass->save();
-        }
-    });
+            // 🔹 Get existing gatepass
+            $gatepass = InwardGatepass::findOrFail($gatepassId);
 
-    // Redirect with success message
-    return redirect()->route('InwardGatepass.home')->with('success', 'Bill has been successfully added and the gatepass is now linked.');
-}
+            // 🔹 Use the same invoice_no (no new number)
+            $invoiceNo = $gatepass->invoice_no;
 
+            // 🔹 Take totals directly from request
+            $subtotal   = $request->subtotal ?? 0;
+            $discount   = $request->discount ?? 0;
+            $extraCost  = $request->extra_cost ?? 0;
+            $netAmount  = $request->net_amount ?? 0;
 
+            // 🔹 Update Gatepass record
+            $gatepass->update([
+                'receive_type'   => $validated['received_in'], // shop | warehouse
+                'warehouse_id'  => $validated['received_in'] === 'warehouse'
+                    ? $validated['warehouse_id']
+                    : null,
 
+                'subtotal'      => $subtotal,
+                'discount'      => $discount,
+                'extra_cost'    => $extraCost,
+                'net_amount'    => $netAmount,
+                'item_discount' => collect($request->item_discount)->sum() ?? 0,
+                'paid_amount'   => 0,
+                'due_amount'    => $netAmount,
+                'bill_status'   => 'billed',
+                'status'        => 'linked',
+            ]);
 
+            foreach ($gatepass->items as $item) {
+                $discountValue = $request->item_discount[$item->id] ?? 0;
+                $discountType  = $request->discount_type[$item->id] ?? 'pkr';
+                $item->discount_value = $discountValue;
+                $item->discount_type  = $discountType;
+                $item->save();
+            }
+            $ledger = VendorLedger::where('vendor_id', $validated['vendor_id'])->latest('id')->first();
 
+            if ($ledger) {
+                $ledger->update([
+                    'previous_balance' => $ledger->closing_balance,
+                    'closing_balance'  => $ledger->closing_balance + (float)$netAmount,
+                ]);
+            } else {
+                VendorLedger::create([
+                    'vendor_id'         => $validated['vendor_id'],
+                    'admin_or_user_id'  => auth()->id(),
+                    'opening_balance'   => 0,
+                    'previous_balance'  => $netAmount,
+                    'closing_balance'   => $netAmount,
+                ]);
+            }
+        });
 
-// public function store(Request $request)
-// {
-//     // ✅ Validation
-//     $validated = $request->validate([
-//         'invoice_no'     => 'nullable|string',
-//         'vendor_id'      => 'nullable|exists:vendors,id',
-//         'purchase_date'  => 'nullable|date',
-//         'warehouse_id'   => 'nullable|exists:warehouses,id',
-//         'note'           => 'nullable|string',
-//         'discount'       => 'nullable|numeric|min:0',
-//         'extra_cost'     => 'nullable|numeric|min:0',
-
-//         // Purchase Items
-//         'product_id'       => 'nullable|array',
-//         'product_id.*'     => 'nullable|exists:products,id',
-//         'qty'              => 'nullable|array',
-//         'qty.*'            => 'nullable|numeric|min:1',
-//         'price'            => 'nullable|array',
-//         'price.*'          => 'nullable|numeric|min:0',
-//         'unit'             => 'nullable|array',
-//         'unit.*'           => 'nullable|string',
-//         'item_discount'    => 'nullable|array',
-//         'item_discount.*'  => 'nullable|numeric|min:0',
-//     ]);
-
-//     DB::transaction(function () use ($validated, $request) {
-
-//         // 🧾 Generate Next Invoice No
-//         $lastInvoice = Purchase::latest()->value('invoice_no');
-//         $nextInvoice = $lastInvoice 
-//             ? 'INV-' . str_pad(((int) filter_var($lastInvoice, FILTER_SANITIZE_NUMBER_INT)) + 1, 5, '0', STR_PAD_LEFT)
-//             : 'INV-00001';
-
-//         // ✍️ Create Purchase with temporary values
-//         $purchase = Purchase::create([
-//             'branch_id'     => auth()->user()->id,
-//             'warehouse_id'  => $validated['warehouse_id'],
-//             'vendor_id'     => $validated['vendor_id'] ?? null,
-//             'purchase_date' => $validated['purchase_date'] ?? now(),
-//             'invoice_no'    => $validated['invoice_no'] ?? $nextInvoice,
-//             'note'          => $validated['note'] ?? null,
-//             'subtotal'      => 0,
-//             'discount'      => 0,
-//             'extra_cost'    => 0,
-//             'net_amount'    => 0,
-//             'paid_amount'   => 0,
-//             'due_amount'    => 0,
-//         ]);
-
-//         $subtotal = 0;
-
-//         // 🧾 Purchase Items
-//         $productIds = $validated['product_id'] ?? [];
-//         foreach ($productIds as $index => $productId) {
-//             $qty   = $validated['qty'][$index] ?? null;
-//             $price = $validated['price'][$index] ?? null;
-
-//             if (empty($productId) || empty($qty) || empty($price)) {
-//                 continue;
-//             }
-
-//             $disc = $validated['item_discount'][$index] ?? 0; // ✅ Correct name
-//             $unit = $validated['unit'][$index] ?? null;
-
-//             $lineTotal = ($price * $qty) - $disc;
-
-//             PurchaseItem::create([
-//                 'purchase_id'   => $purchase->id,
-//                 'product_id'    => $productId,
-//                 'unit'          => $unit,
-//                 'price'         => $price,
-//                 'item_discount' => $disc,
-//                 'qty'           => $qty,
-//                 'line_total'    => $lineTotal,
-//             ]);
-
-//             $subtotal += $lineTotal;
-
-//             // 📦 Update Stock
-//             $stock = Stock::where('branch_id', auth()->user()->id)
-//                 ->where('warehouse_id', $validated['warehouse_id'])
-//                 ->where('product_id', $productId)
-//                 ->first();
-
-//             if ($stock) {
-//                 $stock->qty += $qty;
-//                 $stock->save();
-//             } else {
-//                 Stock::create([
-//                     'branch_id'     => auth()->user()->id,
-//                     'warehouse_id'  => $validated['warehouse_id'],
-//                     'product_id'    => $productId,
-//                     'qty'           => $qty,
-//                 ]);
-//             }
-//         }
-
-//         // 💵 Final Calculations (use values from request safely)
-//         $discount   = $request->discount ?? 0;
-//         $extraCost  = $request->extra_cost ?? 0;
-//         $netAmount  = ($subtotal - $discount) + $extraCost;
-
-//         $purchase->update([
-//             'subtotal'    => $subtotal,
-//             'discount'    => $discount,
-//             'extra_cost'  => $extraCost,
-//             'net_amount'  => $netAmount,
-//             'due_amount'  => $netAmount,
-//         ]);
-
-//         // 📘 Vendor Ledger Update
-//         $previousBalance = VendorLedger::where('vendor_id', $validated['vendor_id'])
-//             ->value('closing_balance') ?? 0;
-
-//         $newClosingBalance = $previousBalance + $netAmount;
-
-//         VendorLedger::updateOrCreate(
-//             ['vendor_id' => $validated['vendor_id']],
-//             [
-//                 'vendor_id'         => $validated['vendor_id'],
-//                 'admin_or_user_id'  => auth()->id(),
-//                 'previous_balance'  => $subtotal,
-//                 'closing_balance'   => $newClosingBalance,
-//             ]
-//         );
-//     });
-
-//     return back()->with('success', 'Purchase saved successfully!');
-// }
+        return redirect()->route('InwardGatepass.home')->with('success', 'Bill successfully added to the Inward Gatepass.');
+    }
 
 
-    // public function store(Request $request)
+
+
+    // public function store_inwardbill(Request $request, $gatepassId = null)
     // {
-        
-//         $validated = $request->validate([
-//             'invoice_no'     => 'nullable|string',
-//             'vendor_id'      => 'nullable|exists:vendors,id',
-//             // 'branch_id'      => 'required|exists:branches,id',
-//             'purchase_date'  => 'nullable|date',
-//             'warehouse_id'   => 'nullable|exists:warehouses,id',
-//             'note'           => 'nullable|string',
-//     'discount'       => 'nullable|numeric|min:0',
-//     'extra_cost'     => 'nullable|numeric|min:0',
+    //     dd($request);
+    //     if ($gatepassId) {
+    //         $gatepass = InwardGatepass::with('purchase')->findOrFail($gatepassId);
+    //         if ($gatepass->purchase) {
+    //             return back()->with('error', 'This gatepass already has an associated bill.');
+    //         }
+    //     } else {
+    //         $gatepass = null;
+    //     }
+    //     $validated = $request->validate([
+    //         'invoice_no'      => 'nullable|string',
+    //         'vendor_id'       => 'nullable|exists:vendors,id',
+    //         'purchase_date'   => 'nullable|date',
+    //         'warehouse_id'    => 'nullable|exists:warehouses,id',
+    //         'note'            => 'nullable|string',
+    //         'discount'        => 'nullable|numeric|min:0',
+    //         'extra_cost'      => 'nullable|numeric|min:0',
+    //         'product_id'      => 'array',
+    //         'product_id.*'    => 'nullable|exists:products,id',
+    //         'qty'             => 'array',
+    //         'qty.*'           => 'nullable|required_with:product_id.*|numeric|min:1',
+    //         'price'           => 'array',
+    //         'price.*'         => 'nullable|required_with:product_id.*|numeric|min:0',
+    //         'unit'            => 'array',
+    //         'unit.*'          => 'nullable|required_with:product_id.*|string',
+    //         'item_discount'   => 'nullable|array',
+    //         'item_discount.*' => 'nullable|numeric|min:0',
+    //     ]);
+    //     DB::transaction(function () use ($validated, $request, $gatepass) {
+    //         $lastInvoice = Purchase::latest()->value('invoice_no');
+    //         $nextInvoice = $lastInvoice
+    //             ? 'INV-' . str_pad(((int) filter_var($lastInvoice, FILTER_SANITIZE_NUMBER_INT)) + 1, 5, '0', STR_PAD_LEFT)
+    //             : 'INV-00001';
+    //         $purchase = Purchase::create([
+    //             'branch_id'       => auth()->user()->id,
+    //             'warehouse_id'    => $validated['warehouse_id'],
+    //             'vendor_id'       => $validated['vendor_id'],
+    //             'purchase_date'   => $validated['purchase_date'] ?? now(),
+    //             'invoice_no'      => $validated['invoice_no'] ?? $nextInvoice,
+    //             'note'             => $validated['note'] ?? null,
+    //             'subtotal'        => 0,
+    //             'discount'        => 0,
+    //             'extra_cost'      => 0,
+    //             'net_amount'      => 0,
+    //             'paid_amount'     => 0,
+    //             'due_amount'      => 0,
+    //         ]);
+    //         $subtotal = 0;
+    //         foreach ($validated['product_id'] as $index => $productId) {
+    //             $qty = $validated['qty'][$index] ?? 0;
+    //             $price = $validated['price'][$index] ?? 0;
+    //             if (empty($productId) || empty($qty) || empty($price)) {
+    //                 continue;
+    //             }
+    //             $disc = $validated['item_discount'][$index] ?? 0;
+    //             $unit = $validated['unit'][$index] ?? null;
+    //             $lineTotal = ($price * $qty) - $disc;
+    //             PurchaseItem::create([
+    //                 'purchase_id'     => $purchase->id,
+    //                 'product_id'      => $productId,
+    //                 'unit'            => $unit,
+    //                 'price'           => $price,
+    //                 'item_discount'   => $disc,
+    //                 'qty'             => $qty,
+    //                 'line_total'      => $lineTotal,
+    //             ]);
+    //             $subtotal += $lineTotal;
+    //             $stock = Stock::where('branch_id', auth()->user()->id)
+    //                 ->where('warehouse_id', $validated['warehouse_id'])
+    //                 ->where('product_id', $productId)
+    //                 ->first();
+    //             if ($stock) {
+    //                 $stock->qty += $qty;
+    //                 $stock->save();
+    //             } else {
+    //                 Stock::create([
+    //                     'branch_id'       => auth()->user()->id,
+    //                     'warehouse_id'    => $validated['warehouse_id'],
+    //                     'product_id'      => $productId,
+    //                     'qty'             => $qty,
+    //                 ]);
+    //             }
+    //         }
+    //         $discount = $request->discount ?? 0;
+    //         $extraCost = $request->extra_cost ?? 0;
+    //         $netAmount = ($subtotal - $discount) + $extraCost;
+    //         $purchase->update([
+    //             'subtotal'    => $subtotal,
+    //             'discount'    => $discount,
+    //             'extra_cost'  => $extraCost,
+    //             'net_amount'  => $netAmount,
+    //             'due_amount'  => $netAmount,
+    //         ]);
+    //         $previousLedger = VendorLedger::where('vendor_id', $validated['vendor_id'])
+    //             ->latest('id')
+    //             ->first();
 
-//             // Purchase Items
-//             'product_id'     => 'nullable|array',
-//             'product_id.*'   => 'nullable|exists:products,id',
-//             'qty'            => 'nullable|array',
-//             'qty.*'          => 'nullable|numeric|min:1',
-//             'price'          => 'nullable|array',
-//             'price.*'        => 'nullable|numeric|min:0',
-//             'unit'           => 'nullable|array',
-//             'unit.*'         => 'nullable|string',
-//             'item_discount'  => 'nullable|array',
-//             'item_discount.*'=> 'nullable|numeric|min:0',
-//         ]);
-// DB::transaction(function () use ($validated) {
+    //         $openingBalance = $previousLedger ? $previousLedger->closing_balance : 0;
+    //         $newClosingBalance = $openingBalance + (float)$netAmount;
 
-//     $lastInvoice = Purchase::latest()->value('invoice_no');
-
-//     $nextInvoice = $lastInvoice 
-//         ? 'INV-' . str_pad(((int) filter_var($lastInvoice, FILTER_SANITIZE_NUMBER_INT)) + 1, 5, '0', STR_PAD_LEFT)
-//         : 'INV-00001';
-
-//     // 1️⃣ Create purchase
-//     $purchase = Purchase::create([
-//         'branch_id'     => Auth()->user()->id,
-//         'warehouse_id'  => $validated['warehouse_id'],
-//         'vendor_id'     => $validated['vendor_id'] ?? null,
-//         'purchase_date' => $validated['purchase_date'] ?? now(),
-//         'invoice_no'    => $validated['invoice_no'] ?? $nextInvoice,
-//         'note'          => $validated['note'] ?? null,
-//         'subtotal'      => $validated['subtotal'] ?? 0,
-//         'discount'      => $validated['discount'] ?? 0,
-//         'extra_cost'    => $validated['extra_cost'] ?? 0,
-//         'net_amount'    => $validated['net_amount'] ?? 0,
-//         'paid_amount'   => 0,
-//         'due_amount'    => 0,
-        
-//     ]);
-
-//     $subtotal = 0;
-
-//     // 2️⃣ Loop & filter rows
-//     $productIds = $validated['product_id'] ?? [];
-//     foreach ($productIds as $index => $productId) {
-//         $qty   = $validated['qty'][$index] ?? null;
-//         $price = $validated['price'][$index] ?? null;
-
-//         // Skip row if any essential field is empty
-//         if (empty($productId) || empty($qty) || empty($price)) {
-//             continue;
-//         }
-
-//         $disc = $validated['item_disc'][$index] ?? 0;
-//         $unit = $validated['unit'][$index] ?? null;
-
-//         $lineTotal = ($price * $qty) - $disc;
-
-//         // Save item
-//         PurchaseItem::create([
-//             'purchase_id'   => $purchase->id,
-//             'product_id'    => $productId,
-//             'unit'          => $unit,
-//             'price'         => $price,
-//             'item_discount' => $disc,
-//             'qty'           => $qty,
-//             'line_total'    => $lineTotal,
-//         ]);
-
-//         $subtotal += $lineTotal;
-
-//         // 3️⃣ Update stock
-//         $stock = Stock::where('branch_id', Auth()->user()->id)
-//             ->where('warehouse_id', $validated['warehouse_id'])
-//             ->where('product_id', $productId)
-//             ->first();
-
-//         if ($stock) {
-//             $stock->qty += $qty;
-//             $stock->save();
-//         } else {
-//             Stock::create([
-//                 'branch_id'     => Auth()->user()->id,
-//                 'warehouse_id'  => $validated['warehouse_id'],
-//                 'product_id'    => $productId,
-//                 'qty'           => $qty,
-//             ]);
-//         }
-//     }
-
-//     // 4️⃣ Update totals
-//     $purchase->update([
-//         'subtotal'    => $subtotal,
-//         'net_amount'  => $subtotal,
-//         'due_amount'  => $subtotal,
-//     ]);
-
-//     // 5️⃣ Vendor ledger
-//     $previousBalance = VendorLedger::where('vendor_id', $validated['vendor_id'])
-//         ->value('closing_balance') ?? 0;
-
-//     $newClosingBalance = $previousBalance + $subtotal;
-
-//     VendorLedger::updateOrCreate(
-//         ['vendor_id' => $validated['vendor_id']],
-//         [
-//             'vendor_id' => $validated['vendor_id'],
-//             'admin_or_user_id' => Auth::id(),
-//             'previous_balance' => $subtotal,
-//             'closing_balance' => $newClosingBalance,
-//         ]
-//     );
-
-// });
-
-        // // DB::transaction(function () use ($validated) {
-            
-        // // $lastInvoice = Purchase::latest()->value('invoice_no');
-
-        // // // Agar last invoice mila to +1 karo, warna start karo INV-00001
-        // // $nextInvoice = $lastInvoice 
-        // //     ? 'INV-' . str_pad(((int) filter_var($lastInvoice, FILTER_SANITIZE_NUMBER_INT)) + 1, 5, '0', STR_PAD_LEFT)
-        // //     : 'INV-00001';
-            
-        // //     // 1️⃣ Save main Purchase
-        // //     $purchase = Purchase::create([
-                
-        // //         'branch_id'     => Auth()->user()->id,
-        // //         'warehouse_id'  => $validated['warehouse_id'],
-        // //         'vendor_id'     => $validated['vendor_id'] ?? null,
-        // //         'purchase_date' => $validated['purchase_date'] ?? now(),
-        // //         'invoice_no'    => $validated['invoice_no'] ?? $nextInvoice,
-        // //         'note'          => $validated['note'] ?? null,
-        // //         'subtotal'      => 0,
-        // //         'discount'      => 0,
-        // //         'extra_cost'    => 0,
-        // //         'net_amount'    => 0,
-        // //         'paid_amount'   => 0,
-        // //         'due_amount'    => 0,
-        // //     ]);
-
-        // //     $subtotal = 0;
-
-        // //     // 2️⃣ Loop purchase items
-        // //     foreach ($validated['product_id'] as $index => $productId) {
-        // //         $qty     = $validated['qty'][$index];
-        // //         $price   = $validated['price'][$index];
-        // //         $disc    = $validated['item_discount'][$index] ?? 0;
-        // //         $lineTotal = ($price * $qty) - $disc;
-
-        // //         // Save purchase item
-        // //         PurchaseItem::create([
-        // //             'purchase_id'   => $purchase->id,
-        // //             'product_id'    => $productId,
-        // //             'unit'          => $validated['unit'][$index] ?? null,
-        // //             'price'         => $price,
-        // //             'item_discount' => $disc,
-        // //             'qty'           => $qty,
-        // //             'line_total'    => $lineTotal,
-        // //         ]);
-
-        // //         $subtotal += $lineTotal;
-
-        // //         // 3️⃣ Update stock
-        // //         $stock = Stock::where('branch_id',  Auth()->user()->id,)
-        // //             ->where('warehouse_id', $validated['warehouse_id'])
-        // //             ->where('product_id', $productId)
-        // //             ->first();
-
-        // //         if ($stock) {
-        // //             $stock->qty += $qty;
-        // //             $stock->save();
-        // //         } else {
-        // //             Stock::create([
-        // //                 'branch_id'     => Auth()->user()->id,
-        // //                 'warehouse_id'  => $validated['warehouse_id'],
-        // //                 'product_id'    => $productId,
-        // //                 'qty'           => $qty,
-        // //             ]);
-        // //         }
-        // //     }
-
-        // //     // 4️⃣ Update totals in purchase
-        // //     $purchase->update([
-        // //         'subtotal'    => $subtotal,
-        // //         'net_amount'  => $subtotal,
-        // //         'due_amount'  => $subtotal,
-        // //     ]);
-
-        // //     $previousBalance = VendorLedger::where('vendor_id', $validated['vendor_id'])
-        // //         ->value('closing_balance') ?? 0; // If no previous balance, start from 0
-        // //     // Calculate new balances
-
-        // //     $newPreviousBalance = $subtotal;
-
-        // //     $newClosingBalance = $previousBalance + $subtotal;
-        // //     $userId = Auth::id();
-
-        // //     // Update or create distributor ledger
-        // //     VendorLedger::updateOrCreate(
-        // //         ['vendor_id' => $validated['vendor_id']],
-        // //         [
-        // //             'vendor_id' => $validated['vendor_id'],
-        // //             'admin_or_user_id' => $userId,
-        // //             'previous_balance' => $newPreviousBalance,
-        // //             'closing_balance' => $newClosingBalance,
-        // //         ]
-        // //     );
-
-        // });
-
-    //     return redirect()->back()->with('success', 'Purchase saved successfully!');
+    //         VendorLedger::create([
+    //             'vendor_id'         => $validated['vendor_id'],
+    //             'admin_or_user_id'  => auth()->id(),
+    //             'opening_balance'   => $openingBalance,
+    //             'previous_balance'  => $netAmount,
+    //             'closing_balance'   => $newClosingBalance,
+    //         ]);
+    //         if ($gatepass) {
+    //             $gatepass->purchase_id = $purchase->id;
+    //             $gatepass->status = 'linked';
+    //             $gatepass->save();
+    //         }
+    //     });
+    //     return redirect()->route('InwardGatepass.home')->with('success', 'Purchase has been successfully added');
     // }
 
-
-    public function edit($id) {
-        $purchase   = Purchase::findOrFail($id);
+    public function edit($id)
+    {
+        $purchase   = Purchase::with('items.product')->findOrFail($id);
         $Vendor     = Vendor::all();
         $Warehouse  = Warehouse::all();
-        //   $Transport  = Transport::all();
-        return view('admin_panel.purchase.edit', compact('purchase','Vendor','Warehouse'));
+
+        return view('admin_panel.purchase.edit', compact('purchase', 'Vendor', 'Warehouse'));
     }
+
 
     public function update(Request $request, $id)
     {
         $validated = $request->validate([
-            'invoice_no' => 'nullable',
-            'supplier' => 'nullable',
-            'purchase_date' => 'nullable',
-            'warehouse_id' => 'nullable',
-            'item_category' => 'nullable',
-            'item_name' => 'nullable|array',
-            'quantity' => 'nullable|array',
-            'price' => 'nullable|array',
-            'unit' => 'nullable|array',
-            'total' => 'nullable|array',
-            'note' => 'nullable',
-            'total_price' => 'nullable',
-            'discount' => 'nullable',
-            'Payable_amount' => 'nullable',
-            'paid_amount' => 'nullable',
-            'due_amount' => 'nullable',
-            'status' => 'nullable',
-            'is_return' => 'nullable',
+            'invoice_no'      => 'nullable|string',
+            'vendor_id'       => 'nullable|exists:vendors,id',
+            'purchase_date'   => 'nullable|date',
+            'warehouse_id'    => 'nullable|exists:warehouses,id',
+            'note'            => 'nullable|string',
+            'discount'        => 'nullable|numeric|min:0',
+            'extra_cost'      => 'nullable|numeric|min:0',
+
+            'product_id'      => 'array',
+            'product_id.*'    => 'nullable|exists:products,id',
+
+            'qty'             => 'array',
+            'qty.*'           => 'nullable|required_with:product_id.*|numeric|min:1',
+
+            'price'           => 'array',
+            'price.*'         => 'nullable|required_with:product_id.*|numeric|min:0',
+
+            'unit'            => 'array',
+            'unit.*'          => 'nullable|required_with:product_id.*|string',
+
+            'item_disc'       => 'nullable|array',
+            'item_disc.*'     => 'nullable|numeric|min:0',
         ]);
 
-        $purchase = Purchase::findOrFail($id);
+        DB::transaction(function () use ($validated, $request, $id) {
+            $purchase = Purchase::findOrFail($id);
 
-        $purchase->update([
-            'invoice_no' => $validated['invoice_no'] ?? null,
-            'supplier' => $validated['supplier'] ?? null,
-            'purchase_date' => $validated['purchase_date'] ?? null,
-            'warehouse_id' => $validated['warehouse_id'] ?? null,
-            'item_category' => $validated['item_category'] ?? null,
+            // Pehle purchase ke purane items delete karenge
+            $purchase->items()->delete();
 
-            'item_name' => json_encode($validated['item_name'] ?? []),
-            'quantity' => json_encode($validated['quantity'] ?? []),
-            'price' => json_encode($validated['price'] ?? []),
-            'unit' => json_encode($validated['unit'] ?? []),
-            'total' => json_encode($validated['total'] ?? []),
+            $subtotal = 0;
 
-            'note' => $validated['note'] ?? null,
-            'total_price' => $validated['total_price'] ?? null,
-            'discount' => $validated['discount'] ?? null,
-            'Payable_amount' => $validated['Payable_amount'] ?? null,
-            'paid_amount' => $validated['paid_amount'] ?? null,
-            'due_amount' => $validated['due_amount'] ?? null,
-            'status' => $validated['status'] ?? null,
-            'is_return' => $validated['is_return'] ?? null,
-        ]);
+            // Naye items insert karna
+            foreach ($validated['product_id'] as $index => $productId) {
+                $qty   = $validated['qty'][$index]   ?? 0;
+                $price = $validated['price'][$index] ?? 0;
+
+                if (empty($productId) || empty($qty) || empty($price)) {
+                    continue;
+                }
+
+                $disc = $validated['item_disc'][$index] ?? 0;
+                $unit = $validated['unit'][$index] ?? null;
+                $lineTotal = ($price * $qty) - $disc;
+
+                PurchaseItem::create([
+                    'purchase_id'   => $purchase->id,
+                    'product_id'    => $productId,
+                    'unit'          => $unit,
+                    'price'         => $price,
+                    'item_discount' => $disc,
+                    'qty'           => $qty,
+                    'line_total'    => $lineTotal,
+                ]);
+
+                $subtotal += $lineTotal;
+            }
+
+            // Final calculations
+            $discount   = $request->discount ?? 0;
+            $extraCost  = $request->extra_cost ?? 0;
+            $netAmount  = ($subtotal - $discount) + $extraCost;
+
+            // Purchase table update
+            $purchase->update([
+                'vendor_id'     => $validated['vendor_id'],
+                'warehouse_id'  => $validated['warehouse_id'],
+                'purchase_date' => $validated['purchase_date'],
+                'invoice_no'    => $validated['invoice_no'],
+                'note'          => $validated['note'],
+                'subtotal'      => $subtotal,
+                'discount'      => $discount,
+                'extra_cost'    => $extraCost,
+                'net_amount'    => $netAmount,
+                'due_amount'    => $netAmount,
+            ]);
+
+            // Vendor Ledger Update
+            $previousLedger = VendorLedger::where('vendor_id', $validated['vendor_id'])->first();
+            $openingBalance = $previousLedger ? $previousLedger->closing_balance : 0;
+            $newClosingBalance = $openingBalance + $netAmount;
+
+            VendorLedger::updateOrCreate(
+                ['vendor_id' => $validated['vendor_id']],
+                [
+                    'vendor_id'         => $validated['vendor_id'],
+                    'admin_or_user_id'  => auth()->id(),
+                    'previous_balance'  => $subtotal,
+                    'closing_balance'   => $newClosingBalance,
+                    'opening_balance'   => $openingBalance,
+                ]
+            );
+        });
 
         return redirect()->route('Purchase.home')->with('success', 'Purchase updated successfully!');
     }
+
+    public function Invoice($id)
+    {
+        $purchase = Purchase::with('items.product')->findOrFail($id);
+        $Vendor = Vendor::all();
+        $Warehouse = Warehouse::all();
+        return view('admin_panel.purchase.Invoice', compact('purchase', 'Vendor', 'Warehouse'));
+    }
+
+
 
     public function destroy($id)
     {
@@ -620,125 +612,170 @@ public function store(Request $request, $gatepassId = null)
 
 
 
-public function showReturnForm($id)
-{
-    $purchase = Purchase::with(['vendor', 'warehouse', 'items.product'])->findOrFail($id);
-    $Vendor = \App\Models\Vendor::all();
-    $Warehouse = \App\Models\Warehouse::all();
+    public function showReturnForm($id)
+    {
+        $purchase = Purchase::with(['vendor', 'warehouse', 'items.product'])->findOrFail($id);
+        $Vendor = \App\Models\Vendor::all();
+        $Warehouse = \App\Models\Warehouse::all();
 
-    return view('admin_panel.purchase.purchase_return.create', compact('purchase', 'Vendor', 'Warehouse'));
-}
+        // compute already returned qty per product (for this purchase)
+        foreach ($purchase->items as $item) {
+            $returnedQty = \App\Models\PurchaseReturnItem::whereHas('purchaseReturn', function ($q) use ($purchase) {
+                $q->where('purchase_id', $purchase->id);
+            })->where('product_id', $item->product_id)->sum('qty');
 
-// store return
-public function storeReturn(Request $request)
-{
-    $validated = $request->validate([
-        'vendor_id'        => 'required|exists:vendors,id',
-        'warehouse_id'     => 'required|exists:warehouses,id',
-        'return_date'      => 'required|date',
-        'return_reason'    => 'nullable|string|max:255',
-        'remarks'          => 'nullable|string',
-        'product_id'       => 'required|array',
-        'product_id.*'     => 'required|exists:products,id',
-        'qty'              => 'required|array',
-        'qty.*'            => 'required|numeric|min:1',
-        'price'            => 'required|array',
-        'price.*'          => 'required|numeric|min:0',
-        'unit'             => 'required|array',
-        'unit.*'           => 'required|string',
-        'item_disc'        => 'nullable|array',
-        'item_disc.*'      => 'nullable|numeric|min:0',
-    ]);
-
-    DB::transaction(function () use ($validated) {
-        // Generate Return Invoice #
-        $lastReturn = \App\Models\PurchaseReturn::latest()->first();
-        $nextInvoice = 'RTN-' . str_pad(optional($lastReturn)->id + 1 ?? 1, 5, '0', STR_PAD_LEFT);
-
-        // Create main return record
-        $return = \App\Models\PurchaseReturn::create([
-            'vendor_id'     => $validated['vendor_id'],
-            'warehouse_id'  => $validated['warehouse_id'],
-            'return_invoice'=> $nextInvoice,
-            'return_date'   => $validated['return_date'],
-            'return_reason' => $validated['return_reason'] ?? null,
-            'bill_amount'   => 0, // calculated below
-            'item_discount' => 0,
-            'extra_discount'=> 0,
-            'net_amount'    => 0,
-            'paid'          => 0,
-            'balance'       => 0,
-            'remarks'       => $validated['remarks'] ?? null,
-        ]);
-
-        $subtotal = 0;
-
-        foreach ($validated['product_id'] as $index => $productId) {
-            $qty   = $validated['qty'][$index];
-            $price = $validated['price'][$index];
-            $disc  = $validated['item_disc'][$index] ?? 0;
-            $unit  = $validated['unit'][$index];
-            $lineTotal = ($price * $qty) - $disc;
-
-            \App\Models\PurchaseReturnItem::create([
-                'purchase_return_id' => $return->id,
-                'product_id'         => $productId,
-                'qty'                => $qty,
-                'price'              => $price,
-                'item_discount'      => $disc,
-                'unit'               => $unit,
-                'line_total'         => $lineTotal,
-            ]);
-
-            // Update stock (deduct)
-            $stock = \App\Models\Stock::where('branch_id', auth()->id())
-                ->where('warehouse_id', $validated['warehouse_id'])
-                ->where('product_id', $productId)
-                ->first();
-
-            if ($stock) {
-                $stock->qty -= $qty;
-                $stock->save();
-            }
-
-            $subtotal += $lineTotal;
+            $item->available_qty = max(0, $item->qty - $returnedQty);
         }
 
-        $discount    = $validated['item_disc'] ? array_sum($validated['item_disc']) : 0;
-        $extraDisc   = $request->extra_discount ?? 0;
-        $netAmount   = ($subtotal - $discount) - $extraDisc;
+        return view('admin_panel.purchase.purchase_return.create', compact('purchase', 'Vendor', 'Warehouse'));
+    }
 
-        $return->update([
-            'bill_amount'   => $subtotal,
-            'item_discount' => $discount,
-            'extra_discount'=> $extraDisc,
-            'net_amount'    => $netAmount,
-            'balance'       => $netAmount,
+
+    // store return
+    public function storeReturn(Request $request)
+    {
+        $validated = $request->validate([
+            'purchase_id'  => 'required|exists:purchases,id',
+            'vendor_id'    => 'required|exists:vendors,id',
+            'return_date'  => 'required|date',
+
+            // 🔥 CONDITIONAL warehouse
+            'warehouse_id' => 'nullable|required_if:purchase_to,warehouse|exists:warehouses,id',
+
+            'product_id'   => 'required|array',
+            'product_id.*' => 'required|exists:products,id',
+
+            'qty'          => 'required|array',
+            'qty.*'        => 'required|numeric|min:1',
+
+            'price'        => 'required|array',
+            'price.*'      => 'required|numeric|min:0',
+
+            'unit'         => 'required|array',
+            'unit.*'       => 'required|string',
+
+            'item_disc'    => 'nullable|array',
+            'item_disc.*'  => 'nullable|numeric|min:0',
+
+            'item_note'    => 'nullable|array',
+            'item_note.*'  => 'nullable|string',
+
+            'discount'     => 'nullable|numeric|min:0',
+            'extra_cost'   => 'nullable|numeric|min:0',
         ]);
 
-        // Update Vendor Ledger (subtract amount)
-        $ledger = \App\Models\VendorLedger::where('vendor_id', $validated['vendor_id'])->first();
-        $openingBalance = $ledger ? $ledger->closing_balance : 0;
-        $closingBalance = $openingBalance - $netAmount;
+        DB::transaction(function () use ($validated, $request) {
 
-        \App\Models\VendorLedger::updateOrCreate(
-            ['vendor_id' => $validated['vendor_id']],
-            [
-                'admin_or_user_id' => auth()->id(),
-                'opening_balance'  => $openingBalance,
-                'closing_balance'  => $closingBalance,
-                'previous_balance' => $openingBalance,
-            ]
-        );
-    });
+            $last = \App\Models\PurchaseReturn::latest()->first();
+            $invoice = 'RTN-' . str_pad(($last->id ?? 0) + 1, 5, '0', STR_PAD_LEFT);
 
-    return redirect()->route('purchase.return.index')->with('success', 'Purchase return successfully created.');
-}
+            $return = \App\Models\PurchaseReturn::create([
+                'purchase_id'    => $validated['purchase_id'],
+                'vendor_id'      => $validated['vendor_id'],
+                'warehouse_id'   => $validated['warehouse_id'] ?? null, // ✅ SAFE
+                'return_invoice' => $invoice,
+                'return_date'    => $validated['return_date'],
+                'remarks'        => $request->remarks ?? null,
+            ]);
 
-public function purchaseReturnIndex()
-{
-    $returns = \App\Models\PurchaseReturn::with(['vendor', 'warehouse'])->latest()->get();
-    return view('admin_panel.purchase.purchase_return.index', compact('returns'));
-}
+            $subtotal           = 0;
+            $totalItemDiscount  = 0;
 
+            foreach ($validated['product_id'] as $i => $productId) {
+
+                $qty        = $validated['qty'][$i];
+                $price      = $validated['price'][$i];
+                $discPerPc  = $validated['item_disc'][$i] ?? 0;
+                $unit       = $validated['unit'][$i];
+
+                // ✅ correct discount calculation
+                $itemDiscTotal = $discPerPc * $qty;
+                $lineTotal     = ($price * $qty) - $itemDiscTotal;
+
+                \App\Models\PurchaseReturnItem::create([
+                    'purchase_return_id' => $return->id,
+                    'product_id'         => $productId,
+                    'qty'                => $qty,
+                    'price'              => $price,
+                    'item_discount'      => $discPerPc,
+                    'unit'               => $unit,
+                    'note'               => $request->item_note[$i] ?? null, // ✅ NOTE
+                    'line_total'         => $lineTotal,
+                ]);
+
+
+                $subtotal          += $lineTotal;
+                $totalItemDiscount += $itemDiscTotal;
+
+                // stock minus
+                if ($request->purchase_to === 'warehouse') {
+
+                    $stock = Stock::where('warehouse_id', $validated['warehouse_id'] ?? null)
+                        ->where('product_id', $productId)
+                        ->first();
+                } else {
+
+                    // SHOP stock
+                    $stock = Stock::whereNull('warehouse_id')
+                        ->where('product_id', $productId)
+                        ->first();
+                }
+
+
+                if ($stock) {
+                    $stock->qty -= $qty;
+                    $stock->save();
+                }
+            }
+
+            $overallDiscount = $validated['discount'] ?? 0;
+            $extraCost       = $validated['extra_cost'] ?? 0;
+
+            // ✅ final net
+            $netAmount = ($subtotal - $overallDiscount) + $extraCost;
+
+            $return->update([
+                'bill_amount'    => $subtotal,
+                'item_discount'  => $totalItemDiscount,
+                'extra_discount' => $overallDiscount,
+                'net_amount'     => $netAmount,
+                'balance'        => $netAmount,
+            ]);
+
+            // Vendor Ledger
+            $ledger = \App\Models\VendorLedger::where('vendor_id', $validated['vendor_id'])->first();
+            $opening = $ledger->closing_balance ?? 0;
+
+            \App\Models\VendorLedger::updateOrCreate(
+                ['vendor_id' => $validated['vendor_id']],
+                [
+                    'admin_or_user_id' => auth()->id(),
+                    'opening_balance'  => $opening,
+                    'closing_balance'  => $opening - $netAmount,
+                    'previous_balance' => $opening,
+                ]
+            );
+        });
+
+        return redirect()
+            ->route('purchase.return.index')
+            ->with('success', 'Purchase return successfully created');
+    }
+
+    public function purchaseReturnIndex()
+    {
+        $returns = \App\Models\PurchaseReturn::with(['vendor', 'warehouse', 'purchase', 'items.product'])
+            ->latest()
+            ->get();
+
+        return view('admin_panel.purchase.purchase_return.index', compact('returns'));
+    }
+
+
+    public function ReturnInvoice($id)
+    {
+        $purchase_return = PurchaseReturn::with(['vendor', 'warehouse', 'items.product'])
+            ->findOrFail($id);
+        return view('admin_panel.purchase.purchase_return.return_Invoice', compact('purchase_return'));
+    }
 }

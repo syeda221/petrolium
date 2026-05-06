@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\ProductBooking;
@@ -11,14 +12,15 @@ class ProductBookingController extends Controller
 {
     public function index()
     {
-        $bookings = ProductBooking::with('customer_relation')->latest()->get();
+        $bookings = ProductBooking::with('customer_relation', 'productt')->latest()->get();
+        // dd($bookings);
         return view('admin_panel.booking.index', compact('bookings'));
     }
-public function receipt($id)
-{
-    $booking = ProductBooking::with('customer_relation')->findOrFail($id);
-    return view('admin_panel.booking.receipt', compact('booking'));
-}
+    public function receipt($id)
+    {
+        $booking = ProductBooking::with('customer_relation', 'productt')->findOrFail($id);
+        return view('admin_panel.booking.receipt', compact('booking'));
+    }
 
     public function create()
     {
@@ -93,13 +95,14 @@ public function receipt($id)
 
             $booking->total_amount_Words = $request->total_amount_Words;
             $booking->total_bill_amount  = $request->total_subtotal;
-            $booking->total_extradiscount= $request->total_extra_cost;
+            $booking->total_extradiscount = $request->total_extra_cost;
             $booking->total_net          = $request->total_net;
 
             $booking->cash   = $request->cash;
             $booking->card   = $request->card;
             $booking->change = $request->change;
             $booking->total_items = $total_items;
+            $booking->booking_date = now();
             $booking->save();
 
             DB::commit();
@@ -108,5 +111,13 @@ public function receipt($id)
             DB::rollback();
             return back()->with('error', 'Error: ' . $e->getMessage());
         }
+    }
+
+    public function destroy($id)
+    {
+        $booking = ProductBooking::findOrFail($id);
+        $booking->delete();
+
+        return redirect()->back()->with('success', 'Booking deleted successfully.');
     }
 }

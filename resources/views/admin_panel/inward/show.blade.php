@@ -1,72 +1,229 @@
-@extends('admin_panel.layout.app')
+<!DOCTYPE html>
+<html lang="en">
 
-@section('content')
-<div class="main-content">
-    <div class="main-content-inner">
-        <div class="container">
-            <div class="row">
-                <div class="col-lg-12">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inward Gatepass Receipt</title>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 40px;
+            background: #fff;
+            color: #000;
+        }
 
-                  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h3>Inward Gatepass #{{ $gatepass->id }}</h3>
-    <div>
-        <a href="{{ route('InwardGatepass.home') }}" class="btn btn-secondary">Back</a>
-        <button onclick="window.print()" class="btn btn-success">Print</button>
-        <a href="{{ route('InwardGatepass.pdf', $gatepass->id) }}" class="btn btn-danger">Download PDF</a>
-    </div>
-</div>
+        .invoice-container {
+            max-width: 800px;
+            margin: auto;
+            border: 1px solid #ddd;
+            padding: 30px;
+            position: relative;
+        }
 
-                    <div class="border shadow rounded p-4 mb-4" style="background-color: white;">
-                        <h5>Gatepass Details</h5>
-                        <table class="table table-bordered">
-                            <tr>
-                                <th>Branch</th>
-                                <td>{{ $gatepass->branch->name ?? 'N/A' }}</td>
-                            </tr>
-                            <tr>
-                                <th>Warehouse</th>
-                                <td>{{ $gatepass->warehouse->warehouse_name ?? 'N/A' }}</td>
-                            </tr>
-                            <tr>
-                                <th>Vendor</th>
-                                <td>{{ $gatepass->vendor->name ?? 'N/A' }}</td>
-                            </tr>
-                            <tr>
-                                <th>Date</th>
-                                <td>{{ $gatepass->gatepass_date }}</td>
-                            </tr>
-                            <tr>
-                                <th>Note</th>
-                                <td>{{ $gatepass->note ?? '-' }}</td>
-                            </tr>
-                        </table>
-                    </div>
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
 
-                    <div class="border shadow rounded p-4" style="background-color: white;">
-                        <h5>Items</h5>
-                        <table class="table table-striped">
-                            <thead class="text-center" style="background:#add8e6">
-                                <tr>
-                                    <th>#</th>
-                                    <th>Product</th>
-                                    <th>Qty</th>
-                                </tr>
-                            </thead>
-                            <tbody class="text-center">
-                                @foreach($gatepass->items as $i => $item)
-                                    <tr>
-                                        <td>{{ $i+1 }}</td>
-                                        <td>{{ $item->product->item_name ?? 'N/A' }}</td>
-                                        <td>{{ $item->qty }}</td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
 
-                </div>
-            </div>
+        .header p {
+            margin: 3px 0;
+            font-size: 13px;
+        }
+
+        .section-title {
+            font-weight: 600;
+            margin: 15px 0 5px 0;
+            font-size: 15px;
+            border-bottom: 1px solid #ccc;
+            display: inline-block;
+            padding-bottom: 3px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th,
+        td {
+            padding: 8px;
+            border: 1px solid #ddd;
+        }
+
+        th {
+            background: #f5f5f5;
+            text-align: left;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            font-size: 12px;
+            color: #555;
+            border-top: 1px solid #ccc;
+            padding-top: 10px;
+        }
+
+        .buttons {
+            text-align: right;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            background: #4ba064;
+            color: #fff;
+            border: none;
+            padding: 8px 14px;
+            margin-left: 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .btn:hover {
+            background: #3d8b55;
+        }
+
+        @media print {
+            .buttons {
+                display: none;
+            }
+
+            body {
+                margin: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="invoice-container">
+
+        <!-- Buttons -->
+        <div class="buttons">
+            <button class="btn" onclick="window.history.back()">← Back</button>
+            <button class="btn" style="background-color: red;" onclick="window.print()">🖨 Print</button>
+        </div>
+
+        <div class="header">
+            <h1>Al-Owais Petroleum Service</h1>
+            <p>Al-Owais Petroleum Service</p>
+            <p> Tower Market Near Ptcl office Hyderabad</p>
+            <p>Phone: 03124977756 | 03463915520</p>
+        </div>
+
+        <h2 style="text-align:center; margin-bottom:20px;">Inward Gatepass Receipt</h2>
+
+        <table style="margin-bottom:20px;">
+            <tr>
+                <th>Receipt #</th>
+                <td>{{ $gatepass->invoice_no ?? 'N/A' }}</td>
+                <th>Date</th>
+                <td>{{ $gatepass->gatepass_date ? \Carbon\Carbon::parse($gatepass->gatepass_date)->format('d M Y') : 'N/A' }}
+                </td>
+            </tr>
+            <tr>
+                <th>Builty #</th>
+                <td>{{ $gatepass->gatepass_no ?? 'N/A' }}</td>
+                <th>Transport</th>
+                <td>{{ $gatepass->transport_name ?? 'N/A' }}</td>
+            </tr>
+            <tr>
+                <th>Vendor</th>
+                <td>{{ $gatepass->vendor->name ?? 'N/A' }}</td>
+                <th>Contact</th>
+                <td>{{ $gatepass->vendor->phone ?? 'N/A' }}</td>
+            </tr>
+            <tr>
+                <th>Warehouse</th>
+                <td>{{ $gatepass->warehouse->warehouse_name ?? 'N/A' }}</td>
+                <th>Location</th>
+                <td>{{ $gatepass->warehouse->location ?? 'N/A' }}</td>
+            </tr>
+            <tr>
+                <th>Remarks</th>
+                <td>{{ $gatepass->remarks ?? 'N/A' }}</td>
+            </tr>
+        </table>
+
+        <span class="section-title">Received Items</span>
+        @php
+            $totalYard = 0;
+            $totalPiece = 0;
+            $totalMeter = 0;
+        @endphp
+
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Item Name</th>
+                    <th>UOM</th>
+                    <th>Qty</th>
+                    <th>Note</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($gatepass->items as $index => $item)
+
+                    @php
+                        if ($item->product->unit_id == 'Yard') {
+                            $totalYard += $item->qty;
+                        } elseif ($item->product->unit_id == 'Piece') {
+                            $totalPiece += $item->qty;
+                        } elseif ($item->product->unit_id == 'Meter') {
+                            $totalMeter += $item->qty;
+                        }
+                    @endphp
+
+                    <tr>
+                        <td>{{ $index + 1 }}</td>
+                        <td>{{ $item->product->item_name ?? 'N/A' }}</td>
+                        <td>{{ $item->product->unit_id ?? 'N/A' }}</td>
+                        <td>{{ $item->qty }}</td>
+                        <td>{{ $item->note }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+
+            <tfoot>
+                <tr>
+                    <th colspan="2" class="text-end">Totals</th>
+                    <th>Piece</th>
+                    <th>Meter</th>
+                    <th>Yard</th>
+                </tr>
+                <tr>
+                    <th colspan="2"></th>
+                    <th>{{ $totalPiece }}</th>
+                    <th>{{ $totalMeter }}</th>
+                    <th>{{ $totalYard }}</th>
+                </tr>
+            </tfoot>
+
+        </table>
+
+        @if($gatepass->note)
+            <p style="margin-top:15px;"><strong>Note:</strong> {{ $gatepass->note }}</p>
+        @endif
+
+        <div class="footer">
+            This is a system-generated receipt — No signature required. <br>
+            Thank you — Al-Owais Petroleum Service
         </div>
     </div>
-</div>
-@endsection
+
+</body>
+
+</html>

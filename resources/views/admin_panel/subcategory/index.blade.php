@@ -27,11 +27,12 @@
             @foreach ($subcategory as $company)
                 <tr>
                     <td class="id">{{ $company->id }}</td>
-                    <td class="name">{{ $company->name }}</td>
-                    <td class="name">{{ $company->category->name }}</td>
+                    <td class="subcategory-name">{{ $company->name }}</td>
+                    <td class="category-name">{{ $company->category->name ?? '' }}</td>
                     <td>
                         <button class="btn btn-primary btn-sm edit-btn"
-                            data-url="{{ route('store.subcategory') }}">
+                            data-url="{{ route('store.subcategory') }}"
+                            data-category_id="{{ $company->category_id }}">
                             Edit
                         </button>
                         <button class="btn btn-danger btn-sm delete-btn"
@@ -75,7 +76,7 @@
                             <input type="text" name="name" class="form-control" id="name" />
                         </div>
 
-                        <select name="category_id" id="" class="form-control">
+                        <select name="category_id" id="category_id" class="form-control">
                             @foreach ($category as $item)
                                     <option value="{{$item->id}}">{{$item->name }}</option>
                             @endforeach
@@ -89,21 +90,11 @@
             </div>
         </div>
     </div> 
-<!-- DataTable CSS -->
-<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
 
-<!-- jQuery -->
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 
-<!-- DataTable JS -->
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+ @endsection
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script  src="{{ asset('assets/js/mycode.js') }}">  </script>
+ @section('scripts')
  <script>
     $(document).on('submit', '.myform', function(e) {
         e.preventDefault();
@@ -117,21 +108,17 @@
 
         var tr = $(this).closest("tr");
         var id = tr.find(".id").text();
-        var name = tr.find(".name").text();
-        $('#id').val(id);     // Set the ID in the hidden input field
-        $('#name').val(name)
+        var name = tr.find(".subcategory-name").text();
+        var category_id = $(this).data('category_id');
+        
+        $('#id').val(id);
+        $('#name').val(name);
+        $('#category_id').val(category_id);
         $("#exampleModal").modal("show")
 
 
     });
-   
 
-
-
-
-
-</script>
-<script>
     $(document).ready(function() {
         $('#default-datatable').DataTable({
             "pageLength": 10,
@@ -146,3 +133,4 @@
 </script>
 
  @endsection
+

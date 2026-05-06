@@ -9,7 +9,7 @@
         {{-- Voucher Table --}}
         <div class="card shadow-sm">
             <div class="card-header d-flex justify-content-between align-items-center text-white">
-                <h6 class="mb-0">Voucher List</h6>
+                <h6 class="mb-0 text-dark ">{{ ucwords($type) }}</h6>
                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#voucherModal">
                     <i class="bi bi-plus-circle"></i> Add Voucher
                 </button>
@@ -149,8 +149,13 @@
             </div>
         </div>
     </div>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script>
+   
+
+   
+@endsection
+
+@section('scripts')
+ <script>
         $(document).ready(function() {
 
             function loadCustomers(type, $personSelect) {
@@ -300,13 +305,8 @@
 
         });
     </script>
-    {{-- DataTables CSS/JS --}}
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
-    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
 
-    <script>
+     <script>
         $(document).ready(function() {
             $('#voucherTable').DataTable();
 
@@ -331,4 +331,5 @@
             });
         });
     </script>
-@endsection
+
+    @endsection

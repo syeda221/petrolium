@@ -9,9 +9,9 @@ class ProductDiscount extends Model
 {
     use HasFactory;
 
-    protected $fillable = [
-        'product_id', 'actual_price', 'discount_percentage', 'discount_amount', 'final_price', 'status'
-    ];
+    protected $guarded = [];
+
+    
 
     public function product()
     {

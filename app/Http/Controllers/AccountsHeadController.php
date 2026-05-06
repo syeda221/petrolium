@@ -2,14 +2,100 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Account;
+use App\Models\AccountHead;
 use Illuminate\Http\Request;
 
 class AccountsHeadController extends Controller
 {
-    public function index (){
-        return view('admin_panel.chart_of_accounts',);
+    public function index()
+    {
+        $accounts = Account::with('head')->get();
+        // dd( $accounts->toArray());
+        $heads = AccountHead::all();
+        return view('admin_panel.chart_of_accounts', compact('accounts', 'heads'));
     }
-    // public function narration (){
-    //     return view('admin_panel.accounts.narration',);
-    // }
+    public function storeHead(Request $request)
+    {
+        $request->validate(['name' => 'required|string|max:100']);
+        AccountHead::create(['name' => $request->name]);
+        return redirect()->back()->with('success', 'Head added successfully.');
+    }
+
+    public function updateHead(Request $request, $id)
+    {
+        $request->validate(['name' => 'required|string|max:100']);
+        $head = AccountHead::findOrFail($id);
+        $head->update(['name' => $request->name]);
+        return redirect()->back()->with('success', 'Head updated successfully.');
+    }
+
+    public function destroyHead($id)
+    {
+        $head = AccountHead::findOrFail($id);
+        if ($head->accounts()->count() > 0) {
+            return redirect()->back()->with('error', 'Cannot delete Head as it has associated accounts.');
+        }
+        $head->delete();
+        return redirect()->back()->with('success', 'Head deleted successfully.');
+    }
+
+    public function storeAccount(Request $request)
+    {
+        $request->validate([
+            'head_id'        => 'required|exists:account_heads,id',
+            'account_code'   => 'required|unique:accounts,account_code',
+            'title'          => 'required|string|max:150',
+            'type'           => 'required|in:Debit,Credit',
+            'opening_balance' => 'nullable|numeric',
+            'status'         => 'nullable|in:on',
+        ]);
+
+        // Set status (1 = active, 0 = inactive)
+        $status = $request->status === 'on' ? 1 : 0;
+
+        Account::create([
+            'head_id'         => $request->head_id,
+            'account_code'    => $request->account_code,
+            'title'           => $request->title,
+            'type'            => $request->type,
+            'opening_balance' => $request->opening_balance ?? 0,
+            'status'          => $status,
+        ]);
+
+        return redirect()->back()->with('success', 'Account added successfully.');
+    }
+
+    public function updateAccount(Request $request, $id)
+    {
+        $request->validate([
+            'head_id'        => 'required|exists:account_heads,id',
+            'account_code'   => 'required|unique:accounts,account_code,' . $id,
+            'title'          => 'required|string|max:150',
+            'type'           => 'required|in:Debit,Credit',
+            'opening_balance' => 'nullable|numeric',
+            'status'         => 'nullable|in:on',
+        ]);
+
+        $account = Account::findOrFail($id);
+        $status = $request->status === 'on' ? 1 : 0;
+
+        $account->update([
+            'head_id'         => $request->head_id,
+            'account_code'    => $request->account_code,
+            'title'           => $request->title,
+            'type'            => $request->type,
+            'opening_balance' => $request->opening_balance ?? 0,
+            'status'          => $status,
+        ]);
+
+        return redirect()->back()->with('success', 'Account updated successfully.');
+    }
+
+    public function destroyAccount($id)
+    {
+        $account = Account::findOrFail($id);
+        $account->delete();
+        return redirect()->back()->with('success', 'Account deleted successfully.');
+    }
 }

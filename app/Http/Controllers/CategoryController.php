@@ -39,7 +39,7 @@ class CategoryController extends Controller
             $Company = new Category();
             $msg = [
                 'success' => 'Category Created Successfully',
-                'redirect' => route('Category.home')
+                'redirect' => $request->redirect_url ?? route('Category.home')
             ];
         }
         $Company->name = $request->name;

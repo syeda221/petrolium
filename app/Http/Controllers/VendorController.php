@@ -9,12 +9,18 @@ use App\Models\VendorLedger;
 use App\Models\VendorPayment;
 use App\Models\VendorBilty;
 use App\Models\Purchase;
+use Illuminate\Support\Facades\DB;
 
 class VendorController extends Controller
 {
     // Show all vendors
     public function index() {
-        $vendors = Vendor::all();
+        $dualPartyNames = DB::table('customers')
+            ->where('customer_type', 'Dual Party')
+            ->orWhere('customer_id', 'LIKE', 'VC-%')
+            ->pluck('customer_name')->toArray();
+            
+        $vendors = Vendor::whereNotIn('name', $dualPartyNames)->get();
         return view('admin_panel.vendors.index', compact('vendors'));
     }
 
@@ -58,7 +64,8 @@ class VendorController extends Controller
     {
         if (Auth::check()) {
             $userId = Auth::id();
-            $VendorLedgers = VendorLedger::where('admin_or_user_id', $userId)->with('vendor')->get();
+            $VendorLedgers = VendorLedger::with('vendor')->get();
+
             return view('admin_panel.vendors.vendors_ledger', compact('VendorLedgers'));
         } else {
             return redirect()->back();
@@ -109,7 +116,11 @@ class VendorController extends Controller
 
         return redirect()->back()->with('success', 'Vendor payment recorded.');
     }
-
+    public function printReceipt($id)
+    {
+        $payment = VendorPayment::with('vendor')->findOrFail($id);
+        return view('admin_panel.vendors.payment_receipt', compact('payment'));
+    }
     // Show all vendor bilties
     public function vendor_bilties()
     {

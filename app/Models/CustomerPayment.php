@@ -10,8 +10,10 @@ class CustomerPayment extends Model
 {
     protected $fillable = [
         'customer_id',
+        'account_id',
         'admin_or_user_id',
         'amount',
+        'adjustment_type',
         'payment_method',
         'payment_date',
         'note',

@@ -1,62 +1,110 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Product Barcode</title>
     <style>
+        :root {
+            --label-w: 42mm;
+            --barcode-w: 58mm;
+            /* barcode + path ka exact block width */
+            --barcode-h: 5mm;
+            /* barcode height */
+        }
+
         body {
             font-family: Arial, sans-serif;
             display: flex;
             justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
+            align-items: flex-start;
+            margin: 0px;
+            padding: 0;
+            background: #fff;
         }
+
         .label {
-            border: 1px solid #000;
-            padding: 10px;
-            width: 280px;
+            border: 1px dashed #000;
+            /* padding: 8px 10px; */
+            width: var(--label-w);
             text-align: center;
+            margin-top: 2mm;
         }
+
         .brand-name {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: bold;
-            margin-bottom: 5px;
+            letter-spacing: 2px;
+            margin-bottom: 6px;
         }
-        .barcode {
-            margin: 5px 0;
+
+        /* --- BARCODE + TEXT as one centered block --- */
+        .barcode-block {
+            width: var(--barcode-w);
+            margin: 4px auto 0 auto;
+            /* center whole block */
         }
-        .product-info {
-            font-size: 13px;
-            margin-top: 2px;
+
+        .barcode-block svg {
+            display: block;
+            width: var(--barcode-w) !important;
+            height: var(--barcode-h) !important;
+            margin: 8px 25px;
+            shape-rendering: crispEdges;
+            overflow: visible;
         }
+
+        .barcode-text {
+            text-align: center;
+            font-size: 12px;
+            /* font-weight: bold; */
+            line-height: 1.2;
+            margin-top: 5px;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
         .price {
-            font-size: 15px;
+            font-size: 14px;
             font-weight: bold;
-            margin-top: 8px;
+            margin-top: 5px;
         }
+
         @media print {
-            body {
-                height: auto;
+            @page {
+                margin: 0mm;
+            }
+
+            .label {
+                page-break-inside: avoid;
+            }
+
+            * {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
             }
         }
     </style>
 </head>
+
 <body>
-
-<div class="label">
-    <div class="brand-name" style="letter-spacing: 2px">WIJDAN</div>
-
-    <div class="barcode" style="display: flex; justify-content: center;">
-        {!! DNS1D::getBarcodeHTML($product->item_code, 'C128', 1.4, 22) !!}
+    <div class="label">
+        <div class="brand-name">Al-Owais Petroleum Service</div>
+        <div class="barcode-block">
+            {!! DNS1D::getBarcodeSVG($product->barcode_path, 'C128', 1.6, 23, 'black', false) !!}
+        </div>
+        <div class="barcode-text">
+            {{ $product->barcode_path }}
+            {{ $product->item_name }}
+        </div>
+        <div class="price">
+            PKR:
+            {{ number_format(
+    $product->activeDiscount
+    ? $product->activeDiscount->final_price
+    : $product->price
+) }}
+        </div>
     </div>
-
-    <div class="product-info" style="font-size: 15px; font-weight: bold;">
-        {{ $product->barcode_path }} {{ $product->item_name }}
-    </div>
-
-    <div class="price">PKR: {{ number_format($product->price) }}</div>
-</div>
-
-
 </body>
+
 </html>
