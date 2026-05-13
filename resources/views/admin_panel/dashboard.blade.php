@@ -354,6 +354,9 @@
                     <!-- ── Summary Cards ── -->
                     <p class="section-title">💼 Financial Overview</p>
                     <div class="fin-cards" id="sumCards"></div>
+                    
+                    <!-- ── Business Conclusion ── -->
+                    <div id="businessConclusion" style="margin-bottom: 24px;"></div>
 
                     <!-- ── Charts ── -->
                     <p class="section-title">📈 Sales & Purchase Trend (Last 6 Months)</p>
@@ -410,6 +413,40 @@
                              </div>`;
             });
             $('#sumCards').html(html);
+
+            // ── Business Conclusion ──
+            let custDues = parseFloat(d.customer_dues) || 0;
+            let vendDues = parseFloat(d.vendor_dues) || 0;
+            let cashBank = parseFloat(d.total_account_balance) || 0;
+            let stockVal = parseFloat(d.total_stock_value) || 0;
+
+            let netBalance = (custDues + cashBank) - vendDues;
+            let totalBusinessValue = netBalance + stockVal;
+
+            let conclusionHtml = `
+            <div style="background: linear-gradient(135deg, #0f172a, #1e293b); color: #fff; padding: 20px 24px; border-radius: 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 10px 25px rgba(0,0,0,0.1); flex-wrap: wrap; gap: 15px;">
+                <div style="flex: 1; min-width: 250px;">
+                    <h5 style="margin: 0 0 8px 0; font-weight: 700; font-size: 1.15rem; color: #e2e8f0; display: flex; align-items: center; gap: 8px;">
+                        <span>💡</span> Business Conclusion
+                    </h5>
+                    <div style="font-size: 0.9rem; color: #94a3b8; margin-top: 5px; line-height: 1.5;">
+                        <div>(Customer Dues <strong style="color:#fff;">${fmt(custDues)}</strong> + Cash & Bank <strong style="color:#fff;">${fmt(cashBank)}</strong>)</div>
+                        <div style="border-bottom: 1px dashed rgba(255,255,255,0.2); padding-bottom: 4px; margin-bottom: 4px;">- Vendor Dues <strong style="color:#fff;">${fmt(vendDues)}</strong></div>
+                        <div style="color: #34d399;">= Net Liquid Balance: <strong style="color:#fff;">${fmt(netBalance)}</strong></div>
+                    </div>
+                </div>
+                <div style="flex: 1; min-width: 250px; border-left: 2px solid rgba(255,255,255,0.08); padding-left: 20px; text-align: right;">
+                    <div style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8;">Total Business Value</div>
+                    <div style="font-size: 0.85rem; color: #cbd5e1; margin-top: 6px;">
+                        Net Liquid Balance <strong style="color:#fff;">${fmt(netBalance)}</strong>
+                    </div>
+                    <div style="font-size: 0.85rem; color: #cbd5e1; margin-top: 2px;">
+                        + Stock Value <strong style="color:#fff;">${fmt(stockVal)}</strong>
+                    </div>
+                    <div style="font-size: 1.8rem; font-weight: 800; color: #38bdf8; margin-top: 8px; line-height: 1;">${fmt(totalBusinessValue)}</div>
+                </div>
+            </div>`;
+            $('#businessConclusion').html(conclusionHtml);
 
             // ── Bar Chart ──
             const monthMap = {};

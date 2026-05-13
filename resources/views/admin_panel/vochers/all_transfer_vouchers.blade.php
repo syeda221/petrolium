@@ -21,6 +21,7 @@
                                     <th>Destination (To)</th>
                                     <th>Amount</th>
                                     <th>Remarks</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -62,6 +63,9 @@
                                         <td class="text-success fw-bold">{{ $destName }}</td>
                                         <td class="font-weight-bold text-dark">{{ number_format($voucher->amount, 2) }}</td>
                                         <td>{{ $voucher->remarks ?? '-' }}</td>
+                                        <td>
+                                            <a href="{{ route('transfer-vouchers.edit', $voucher->id) }}" class="btn btn-sm btn-info">Edit</a>
+                                        </td>
                                     </tr>
                                 @endforeach
                             </tbody>

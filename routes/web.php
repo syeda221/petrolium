@@ -354,6 +354,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/transfer-vouchers', [\App\Http\Controllers\TransferVoucherController::class, 'index'])->name('transfer-vouchers');
     Route::post('/transfer-vouchers/store', [\App\Http\Controllers\TransferVoucherController::class, 'store'])->name('transfer-vouchers.store');
     Route::get('/transfer-vouchers/all', [\App\Http\Controllers\TransferVoucherController::class, 'all_transfer_vouchers'])->name('transfer-vouchers.all');
+    Route::get('/transfer-vouchers/edit/{id}', [\App\Http\Controllers\TransferVoucherController::class, 'edit'])->name('transfer-vouchers.edit');
+    Route::post('/transfer-vouchers/update/{id}', [\App\Http\Controllers\TransferVoucherController::class, 'update'])->name('transfer-vouchers.update');
 
     Route::get('/account-transfers', [\App\Http\Controllers\AccountTransferController::class, 'index'])->name('account-transfers');
     Route::post('/account-transfers/store', [\App\Http\Controllers\AccountTransferController::class, 'store'])->name('account-transfers.store');
@@ -362,13 +364,13 @@ Route::middleware('auth')->group(function () {
     // Simple Finance (Payment In & Out, Other Income)
     Route::get('/finance/payment-in', [\App\Http\Controllers\SimpleFinanceController::class, 'paymentIn'])->name('payment.in');
     Route::post('/finance/payment-in', [\App\Http\Controllers\SimpleFinanceController::class, 'storePaymentIn'])->name('payment.in.store');
-    Route::put('/finance/payment-in/{id}', [\App\Http\Controllers\SimpleFinanceController::class, 'updatePaymentIn'])->name('payment.in.update');
-    Route::delete('/finance/payment-in/{id}', [\App\Http\Controllers\SimpleFinanceController::class, 'destroyPaymentIn'])->name('payment.in.delete');
+    Route::put('/finance/payment-in/{id}/{type}', [\App\Http\Controllers\SimpleFinanceController::class, 'updatePaymentIn'])->name('payment.in.update');
+    Route::delete('/finance/payment-in/{id}/{type}', [\App\Http\Controllers\SimpleFinanceController::class, 'destroyPaymentIn'])->name('payment.in.delete');
 
     Route::get('/finance/payment-out', [\App\Http\Controllers\SimpleFinanceController::class, 'paymentOut'])->name('payment.out');
     Route::post('/finance/payment-out', [\App\Http\Controllers\SimpleFinanceController::class, 'storePaymentOut'])->name('payment.out.store');
-    Route::put('/finance/payment-out/{id}', [\App\Http\Controllers\SimpleFinanceController::class, 'updatePaymentOut'])->name('payment.out.update');
-    Route::delete('/finance/payment-out/{id}', [\App\Http\Controllers\SimpleFinanceController::class, 'destroyPaymentOut'])->name('payment.out.delete');
+    Route::put('/finance/payment-out/{id}/{type}', [\App\Http\Controllers\SimpleFinanceController::class, 'updatePaymentOut'])->name('payment.out.update');
+    Route::delete('/finance/payment-out/{id}/{type}', [\App\Http\Controllers\SimpleFinanceController::class, 'destroyPaymentOut'])->name('payment.out.delete');
 
     Route::get('/finance/other-income', [\App\Http\Controllers\SimpleFinanceController::class, 'otherIncome'])->name('other.income');
     Route::post('/finance/other-income', [\App\Http\Controllers\SimpleFinanceController::class, 'storeOtherIncome'])->name('other.income.store');
@@ -387,6 +389,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/account', [AccountsHeadController::class, 'storeAccount'])->name('coa.account.store');
         Route::post('/account/update/{id}', [AccountsHeadController::class, 'updateAccount'])->name('coa.account.update');
         Route::get('/account/delete/{id}', [AccountsHeadController::class, 'destroyAccount'])->name('coa.account.destroy');
+        Route::get('/account/ledger/{id}', [AccountsHeadController::class, 'accountLedger'])->name('coa.account.ledger');
     });
 
     // Group Products Routes

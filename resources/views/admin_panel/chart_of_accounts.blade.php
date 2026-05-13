@@ -78,6 +78,7 @@
                         @endif
                     </td>
                     <td>
+                        <a href="{{ route('coa.account.ledger', $account->id) }}" class="btn btn-sm btn-dark">📊 Ledger</a>
                         <button class="btn btn-sm btn-info edit-account-btn" 
                                 data-id="{{ $account->id }}"
                                 data-head_id="{{ $account->head_id }}"

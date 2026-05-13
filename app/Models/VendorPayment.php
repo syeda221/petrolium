@@ -14,6 +14,7 @@ class VendorPayment extends Model
         'admin_or_user_id',
         'payment_date',
         'amount',
+        'adjustment_type',
         'payment_method',
         'note',
     ];

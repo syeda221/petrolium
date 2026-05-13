@@ -29,9 +29,28 @@
                             <label>Income Source / Title <span class="text-danger">*</span></label>
                             <input type="text" name="title" class="form-control" required placeholder="e.g. Scrape sale, Return diff">
                         </div>
+
                         <div class="form-group mb-3">
+                            <label>Deposit To Type <span class="text-danger">*</span></label>
+                            <div class="d-flex gap-3 mt-1">
+                                <div class="form-check me-3">
+                                    <input class="form-check-input party-type-radio" type="radio" name="party_type" id="type_account" value="account" checked>
+                                    <label class="form-check-label" for="type_account">Account</label>
+                                </div>
+                                <div class="form-check me-3">
+                                    <input class="form-check-input party-type-radio" type="radio" name="party_type" id="type_vendor" value="vendor">
+                                    <label class="form-check-label" for="type_vendor">Vendor</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input party-type-radio" type="radio" name="party_type" id="type_customer" value="customer">
+                                    <label class="form-check-label" for="type_customer">Customer</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="account_select_wrapper" class="form-group mb-3">
                             <label>Deposit To (Account) <span class="text-danger">*</span></label>
-                            <select name="account_id" class="form-control" required>
+                            <select name="account_id" class="form-control">
                                 <option value="">-- Choose Account --</option>
                                 @foreach($accounts as $acc)
                                     <option value="{{ $acc->id }}" {{ str_contains(strtolower($acc->title), 'cash') ? 'selected' : '' }}>
@@ -40,6 +59,27 @@
                                 @endforeach
                             </select>
                         </div>
+
+                        <div id="vendor_select_wrapper" class="form-group mb-3" style="display: none;">
+                            <label>Select Vendor <span class="text-danger">*</span></label>
+                            <select name="vendor_id" class="form-control select2" style="width: 100%;">
+                                <option value="">-- Choose Vendor --</option>
+                                @foreach($vendors as $v)
+                                    <option value="{{ $v->id }}">{{ $v->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div id="customer_select_wrapper" class="form-group mb-3" style="display: none;">
+                            <label>Select Customer <span class="text-danger">*</span></label>
+                            <select name="customer_id" class="form-control select2" style="width: 100%;">
+                                <option value="">-- Choose Customer --</option>
+                                @foreach($customers as $c)
+                                    <option value="{{ $c->id }}">{{ $c->customer_name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
                         <div class="form-group mb-3">
                             <label>Amount (PKR) <span class="text-danger">*</span></label>
                             <input type="number" name="amount" class="form-control" step="0.01" min="1" required>
@@ -65,6 +105,7 @@
                                 <tr>
                                     <th>Date</th>
                                     <th>Source</th>
+                                    <th>Deposit To</th>
                                     <th>Amount</th>
                                     <th>Action</th>
                                 </tr>
@@ -77,59 +118,24 @@
                                             <strong>{{ $inc->title }}</strong><br>
                                             <small class="text-muted">{{ $inc->remarks }}</small>
                                         </td>
+                                        <td>
+                                            <span class="badge {{ $inc->party_type == 'account' ? 'badge-dark' : ($inc->party_type == 'vendor' ? 'badge-primary' : 'badge-info') }}">
+                                                {{ ucfirst($inc->party_type) }}
+                                            </span><br>
+                                            {{ $inc->deposit_to }}
+                                        </td>
                                         <td class="text-info font-weight-bold">{{ number_format($inc->amount, 2) }}</td>
                                         <td>
-                                            <!-- Edit Button -->
-                                            <button type="button" class="btn btn-sm btn-info" data-toggle="modal" data-target="#editModal{{ $inc->id }}">Edit</button>
+                                            <!-- Edit Button removed for simplicity as it needs complex logic for party change, or can be kept with minimal fields -->
                                             
                                             <!-- Delete Button -->
-                                            <form action="{{ route('other.income.delete', $inc->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this specific income?');">
+                                            <form action="{{ route('other.income.delete', $inc->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this specific income? Ledger/Balance will be reverted.');">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="btn btn-sm btn-danger">Delete</button>
                                             </form>
                                         </td>
                                     </tr>
-
-                                    <!-- Edit Modal -->
-                                    <div class="modal fade" id="editModal{{ $inc->id }}" tabindex="-1" role="dialog" aria-hidden="true">
-                                      <div class="modal-dialog" role="document">
-                                        <div class="modal-content text-left">
-                                          <form action="{{ route('other.income.update', $inc->id) }}" method="POST">
-                                              @csrf
-                                              @method('PUT')
-                                              <div class="modal-header">
-                                                <h5 class="modal-title">Edit Other Income</h5>
-                                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                                  <span aria-hidden="true">&times;</span>
-                                                </button>
-                                              </div>
-                                              <div class="modal-body">
-                                                  <div class="form-group mb-2">
-                                                      <label>Date</label>
-                                                      <input type="date" name="date" class="form-control" value="{{ $inc->date }}" required>
-                                                  </div>
-                                                  <div class="form-group mb-2">
-                                                      <label>Source / Title</label>
-                                                      <input type="text" name="title" class="form-control" value="{{ $inc->title }}" required>
-                                                  </div>
-                                                  <div class="form-group mb-2">
-                                                      <label>Amount (PKR)</label>
-                                                      <input type="number" name="amount" class="form-control" step="0.01" min="1" value="{{ $inc->amount }}" required>
-                                                  </div>
-                                                  <div class="form-group mb-2">
-                                                      <label>Remarks</label>
-                                                      <input type="text" name="remarks" class="form-control" value="{{ $inc->remarks }}">
-                                                  </div>
-                                              </div>
-                                              <div class="modal-footer">
-                                                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                                                <button type="submit" class="btn btn-primary">Update Income</button>
-                                              </div>
-                                          </form>
-                                        </div>
-                                      </div>
-                                    </div>
                                 @endforeach
                             </tbody>
                         </table>
@@ -143,7 +149,36 @@
 @section('scripts')
 <script>
     $(document).ready(function() {
-        $('#datatable').DataTable();
+        if ($.fn.DataTable.isDataTable('#datatable')) {
+            $('#datatable').DataTable().destroy();
+        }
+        $('#datatable').DataTable({
+            "order": [[ 0, "desc" ]]
+        });
+
+        if ($.fn.select2) {
+            $('.select2').select2();
+        }
+
+        $('.party-type-radio').on('change', function() {
+            let val = $(this).val();
+            $('#account_select_wrapper, #vendor_select_wrapper, #customer_select_wrapper').hide();
+            $('#account_select_wrapper select, #vendor_select_wrapper select, #customer_select_wrapper select').attr('required', false);
+
+            if (val === 'account') {
+                $('#account_select_wrapper').show();
+                $('#account_select_wrapper select').attr('required', true);
+            } else if (val === 'vendor') {
+                $('#vendor_select_wrapper').show();
+                $('#vendor_select_wrapper select').attr('required', true);
+            } else {
+                $('#customer_select_wrapper').show();
+                $('#customer_select_wrapper select').attr('required', true);
+            }
+        });
+
+        // Initial required state
+        $('#account_select_wrapper select').attr('required', true);
     });
 </script>
 @endsection

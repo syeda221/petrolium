@@ -12,6 +12,9 @@ class OtherIncome extends Model
     protected $fillable = [
         'date',
         'title',
+        'party_type',
+        'vendor_id',
+        'customer_id',
         'account_id',
         'amount',
         'remarks',

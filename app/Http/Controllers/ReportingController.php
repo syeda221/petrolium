@@ -932,6 +932,26 @@ class ReportingController extends Controller
                 return $impacts;
             });
 
+        $otherIncomes = DB::table('other_incomes')
+            ->where(function($q) use ($customer, $vendor) {
+                $q->where('party_type', 'customer')->where('customer_id', $customer->id);
+                if ($vendor) {
+                    $q->orWhere('party_type', 'vendor')->where('vendor_id', $vendor->id);
+                }
+            })
+            ->whereBetween('date', [$start, $end])
+            ->get()
+            ->map(function ($inc) {
+                return [
+                    'date' => $inc->date . ' 23:59:59',
+                    'invoice' => '-',
+                    'reference' => '-',
+                    'description' => 'Other Income (Deposit): ' . $inc->title . ' (' . ($inc->remarks ?? '') . ')',
+                    'debit' => (float) $inc->amount,
+                    'credit' => 0,
+                ];
+            });
+
         $transactions = $sales
             ->merge($customerPayments)
             ->merge($saleReturns)
@@ -939,6 +959,7 @@ class ReportingController extends Controller
             ->merge($purchaseReturns)
             ->merge($vendorPayments)
             ->merge($tvs)
+            ->merge($otherIncomes)
             ->sortBy('date') // Sort by Date
             ->values()
             ->all();
@@ -1074,12 +1095,30 @@ class ReportingController extends Controller
                 ];
             });
 
+        $otherIncomes = DB::table('other_incomes')
+            ->where('party_type', 'customer')
+            ->where('customer_id', $customerId)
+            ->whereBetween('date', [$start, $end])
+            ->get()
+            ->map(function ($inc) {
+                return [
+                    'date' => $inc->date . ' 23:59:59',
+                    'sort_type' => 2,
+                    'invoice' => '-',
+                    'reference' => '-',
+                    'description' => 'Other Income (Deposit): ' . $inc->title . ' (' . ($inc->remarks ?? '') . ')',
+                    'debit' => (float) $inc->amount,
+                    'credit' => 0,
+                ];
+            });
+
         $transactions = $sales
             ->merge($payments)
             ->merge($returns)
             ->merge($rvs)
             ->merge($pvs)
             ->merge($tvs)
+            ->merge($otherIncomes)
             ->sort(function ($a, $b) {
 
                 // 1️⃣ Date compare
@@ -1166,12 +1205,14 @@ class ReportingController extends Controller
             ->whereBetween('payment_date', [$start, $end])
             ->get()
             ->map(function ($v) {
+                // adjustment_type 'plus' means Payment In (Receipt from Vendor), 'minus' means Payment Out
+                $isPlus = isset($v->adjustment_type) && $v->adjustment_type === 'plus';
                 return [
                     'date' => $v->payment_date,
                     'invoice' => '-',
-                    'description' => $v->note ?? 'Payment Made',
-                    'debit' => 0,
-                    'credit' => $v->amount,
+                    'description' => ($isPlus ? '[+] Receipt: ' : '[-] Payment: ') . ($v->note ?? ''),
+                    'debit' => $isPlus ? $v->amount : 0,
+                    'credit' => $isPlus ? 0 : $v->amount,
                 ];
             });
 
@@ -1205,10 +1246,26 @@ class ReportingController extends Controller
                 ];
             });
 
+        $otherIncomes = DB::table('other_incomes')
+            ->where('party_type', 'vendor')
+            ->where('vendor_id', $vendorId)
+            ->whereBetween('date', [$start, $end])
+            ->get()
+            ->map(function ($inc) {
+                return [
+                    'date' => $inc->date . ' 23:59:59',
+                    'invoice' => '-',
+                    'description' => 'Other Income (Deposit): ' . $inc->title . ' (' . ($inc->remarks ?? '') . ')',
+                    'debit' => 0,
+                    'credit' => (float) $inc->amount,
+                ];
+            });
+
         $transactions = $purchases
             ->merge($returns)
             ->merge($payments)
             ->merge($tvs)
+            ->merge($otherIncomes)
             ->sortBy('date')
             ->values()
             ->all();
@@ -1359,8 +1416,20 @@ class ReportingController extends Controller
         // Purchases (Debit increases)
         $purchases = DB::table('purchases')->where('vendor_id', $vendorId)->sum('net_amount');
         
-        // Payments (Credit decreases)
-        $payments = DB::table('vendor_payments')->where('vendor_id', $vendorId)->sum('amount');
+        // Payments (Payment Out reduces balance, Payment In increases balance)
+        $paymentsOut = DB::table('vendor_payments')
+            ->where('vendor_id', $vendorId)
+            ->where(function($q) {
+                $q->where('adjustment_type', 'minus')->orWhereNull('adjustment_type');
+            })
+            ->sum('amount');
+            
+        $paymentsIn = DB::table('vendor_payments')
+            ->where('vendor_id', $vendorId)
+            ->where('adjustment_type', 'plus')
+            ->sum('amount');
+            
+        $netPayments = $paymentsOut - $paymentsIn;
         
         // Returns (Credit decreases)
         $returns = DB::table('purchase_returns')->where('vendor_id', $vendorId)->sum('net_amount');
@@ -1385,7 +1454,7 @@ class ReportingController extends Controller
             }
         }
 
-        return $opening + $purchases - $payments - $returns + $tvImpact;
+        return $opening + $purchases - $netPayments - $returns + $tvImpact;
     }
 
     public function cashbook()
@@ -1563,18 +1632,36 @@ class ReportingController extends Controller
                 return $item['amount'] != 0;  // Only show if there's actual cash refund
             });
 
-        $allReceipts = $salesReceipts->merge($customerRecoveries)->merge($receiptVouchers);
-        $totalIn = $allReceipts->sum('amount');
-
-        // 3. PAYMENTS (Cash Out)
-        // A. Vendor Payments
-        $vendorPayments = DB::table('vendor_payments')
+        // E. Vendor Receipts (Cash In: plus)
+        $vendorReceipts = DB::table('vendor_payments')
             ->whereDate('payment_date', $selectedDate)
+            ->where('adjustment_type', 'plus')
             ->leftJoin('vendors', 'vendor_payments.vendor_id', '=', 'vendors.id')
             ->get(['vendor_payments.amount', 'vendor_payments.note', 'vendors.name'])
             ->map(function($vp) {
                 return [
-                    'title' => 'Vendor Payment',
+                    'title' => 'Vendor Receipt (Cash In)',
+                    'ref' => $vp->note ?? 'Receipt',
+                    'party' => $vp->name,
+                    'amount' => (float) $vp->amount
+                ];
+            });
+
+        $allReceipts = $salesReceipts->merge($customerRecoveries)->merge($receiptVouchers)->merge($vendorReceipts);
+        $totalIn = $allReceipts->sum('amount');
+
+        // 3. PAYMENTS (Cash Out)
+        // A. Vendor Payments (Cash Out: minus or null)
+        $vendorPayments = DB::table('vendor_payments')
+            ->whereDate('payment_date', $selectedDate)
+            ->where(function($q) {
+                $q->where('adjustment_type', 'minus')->orWhereNull('adjustment_type');
+            })
+            ->leftJoin('vendors', 'vendor_payments.vendor_id', '=', 'vendors.id')
+            ->get(['vendor_payments.amount', 'vendor_payments.note', 'vendors.name'])
+            ->map(function($vp) {
+                return [
+                    'title' => 'Vendor Payment (Cash Out)',
                     'ref' => $vp->note ?? 'Payment',
                     'party' => $vp->name,
                     'amount' => (float) $vp->amount
