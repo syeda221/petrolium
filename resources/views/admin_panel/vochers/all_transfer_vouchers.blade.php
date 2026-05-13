@@ -64,7 +64,11 @@
                                         <td class="font-weight-bold text-dark">{{ number_format($voucher->amount, 2) }}</td>
                                         <td>{{ $voucher->remarks ?? '-' }}</td>
                                         <td>
-                                            <a href="{{ route('transfer-vouchers.edit', $voucher->id) }}" class="btn btn-sm btn-info">Edit</a>
+                                            <a href="{{ route('transfer-vouchers.edit', $voucher->id) }}"
+                                               class="btn btn-sm btn-warning fw-bold"
+                                               title="Edit Voucher">
+                                               <i class="mdi mdi-pencil"></i> Edit
+                                            </a>
                                         </td>
                                     </tr>
                                 @endforeach
@@ -77,11 +81,12 @@
     </div>
 </div>
 
+@endsection
+
 @section('scripts')
 <script>
     $(document).ready(function() {
         $('#datatable').DataTable();
     });
 </script>
-@endsection
 @endsection

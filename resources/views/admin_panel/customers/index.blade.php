@@ -60,11 +60,7 @@
                                 <i class="fa-solid {{ $customer->status === 'active' ? 'fa-toggle-on' : 'fa-toggle-off' }}"></i>
                             </a>
 
-                            <a href="{{ route('customers.destroy', $customer->id) }}"
-                                class="btn btn-sm btn-danger"
-                                onclick="return confirm('Are you sure?')">
-                                Delete
-                            </a>
+
                         </td>
                     </tr>
                     @endforeach

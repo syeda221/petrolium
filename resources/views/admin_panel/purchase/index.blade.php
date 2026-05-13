@@ -192,11 +192,11 @@
                                                             class="btn btn-sm btn-danger">Return</a>
                                                             <a href="{{ route('purchase.invoice', $purchase->id) }}"
                                                             class="btn btn-sm btn-info text-white">Invoice</a>
-                                                            <form action="{{ route('purchase.destroy', $purchase->id) }}" method="POST" style="display:inline;" class="delete-form">
+                                                            <!-- <form action="{{ route('purchase.destroy', $purchase->id) }}" method="POST" style="display:inline;" class="delete-form">
                                                                 @csrf
                                                                 @method('DELETE')
                                                                 <button type="button" class="btn btn-sm btn-danger delete-purchase-btn">Delete</button>
-                                                            </form>
+                                                            </form> -->
                                                         @endif
                                                     </div>
                                                 </td>

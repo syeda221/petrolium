@@ -45,7 +45,6 @@
                                 <td>{{ $v->address }}</td>
                                 <td>
                                     <button class="btn btn-sm btn-primary btn-edit-vendor" data-id="{{ $v->id }}">Edit</button>
-                                    <a href="{{ url('vendor/delete/'.$v->id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Delete?')">Delete</a>
                                 </td>
                             </tr>
                             @endforeach
