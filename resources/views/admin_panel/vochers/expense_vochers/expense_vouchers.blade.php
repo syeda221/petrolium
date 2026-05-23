@@ -25,7 +25,7 @@
                             <label class="form-label fw-bold">EVID</label>
                             <input type="text" class="form-control" name="evid" value="{{ $nextRvid }}" readonly>
                         </div>
-                        <div class="col-md-2 d-none">
+                        <div class="col-md-2">
                             <label class="form-label fw-bold">Entry Date</label>
                             <input type="date" name="entry_date" class="form-control" value="{{ now()->toDateString() }}">
                         </div>
@@ -44,11 +44,11 @@
                             <label class="form-label fw-bold">Account Code</label>
                             <input type="text" name="tel" id="tel" class="form-control" readonly>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-md-1">
                             <label class="form-label fw-bold">Balance</label>
                             <input type="text" id="balance" class="form-control text-danger fw-bold" readonly>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label fw-bold">Remarks</label>
                             <input type="text" name="remarks" class="form-control" id="remarks">
                         </div>

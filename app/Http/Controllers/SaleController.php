@@ -276,6 +276,15 @@ class SaleController extends Controller
                 $model->invoice_no = \App\Models\Sale::generateInvoiceNo();
             }
 
+            if ($request->has('created_at') && $request->created_at) {
+                $customDate = \Carbon\Carbon::parse($request->created_at);
+                if ($customDate->toDateString() === now()->toDateString()) {
+                    $model->created_at = now();
+                } else {
+                    $model->created_at = $customDate->setTimeFrom(now());
+                }
+            }
+
             // --- Fill common fields ---
             $model->customer             = $request->customer;
             $model->reference            = $request->reference;
@@ -1357,6 +1366,12 @@ class SaleController extends Controller
             }
 
             // --- 5. Update Sale Record ---
+            if ($request->has('created_at') && $request->created_at) {
+                $customDate = \Carbon\Carbon::parse($request->created_at);
+                if ($customDate->toDateString() !== \Carbon\Carbon::parse($sale->created_at)->toDateString()) {
+                    $sale->created_at = $customDate->setTimeFrom(\Carbon\Carbon::parse($sale->created_at));
+                }
+            }
             $sale->customer            = $request->customer;
             $sale->remarks             = $request->remarks;
             $sale->product             = implode(',', $combined_products);

@@ -1892,7 +1892,7 @@ class ReportingController extends Controller
         $netSalesProfit = ($totalSalesProfit - $totalExtraDiscount + $totalLabourCharges) - $totalReturnLoss;
 
         // --- EXPENSES ---
-        $expenses = ExpenseVoucher::whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])->get();
+        $expenses = ExpenseVoucher::whereBetween('entry_date', [$startDate, $endDate])->get();
         $totalExpenseAmount = 0;
         foreach ($expenses as $exp) {
             $amounts = $exp->amount;

@@ -648,7 +648,7 @@ class VoucherController extends Controller
 
             $voucherData = [
                 'evid'             => $evid,
-                'entry_date'       => now()->toDateString(),
+                'entry_date'       => $request->entry_date ?? now()->toDateString(),
                 'type'             => 'account', 
                 'party_id'         => $request->vendor_id, 
                 'remarks'          => $request->remarks,
@@ -1007,6 +1007,7 @@ class VoucherController extends Controller
             }
 
             $voucher->update([
+                'entry_date'       => $request->entry_date ?? $voucher->entry_date,
                 'party_id'         => $request->vendor_id, 
                 'remarks'          => $request->remarks,
                 'row_account_head' => $rowAccountHeads, 

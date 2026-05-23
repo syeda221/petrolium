@@ -25,7 +25,11 @@
                             <label class="form-label fw-bold">EVID</label>
                             <input type="text" class="form-control" name="evid" value="{{ $voucher->evid }}" readonly>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold">Entry Date</label>
+                            <input type="date" name="entry_date" class="form-control" value="{{ $voucher->entry_date ?? now()->toDateString() }}">
+                        </div>
+                        <div class="col-md-3">
                             <label class="form-label fw-bold">Source Account (Cash/Bank)</label>
                             <select name="vendor_id" class="form-select" required>
                                 <option disabled>Select Source</option>

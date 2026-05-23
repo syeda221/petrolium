@@ -373,7 +373,6 @@
                 @endif
 
                 <div class="card-body pb-2">
-                    {{-- Top Form --}}
                     <div class="row mb-2 align-items-end">
                         <div class="col-md-2">
                             <label class="form-label fw-bold mb-1">Customer:</label>
@@ -386,13 +385,17 @@
                             <span class="bal-loading" id="balLoading"><i class="fas fa-spinner fa-spin"></i>
                                 Loading...</span>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold mb-1">Date:</label>
+                            <input type="date" name="created_at" class="form-control form-control-sm" value="{{ now()->toDateString() }}">
+                        </div>
+                        <div class="col-md-2">
                             {{-- Customer Balance Info Panel --}}
                             <label class="form-label fw-bold mb-1">Remarks (Optional):</label>
                             <textarea name="remarks" class="form-control form-control-sm" rows="1"
                                 placeholder="Enter remarks..."></textarea>
                         </div>
-                        <div class="col-md-7">
+                        <div class="col-md-6">
                             <div class="customer-balance-bar" id="customerBalanceBar">
                             <div class="balance-item">
                                 <span class="balance-label">👤 Customer</span>

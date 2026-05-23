@@ -29,6 +29,7 @@
                                 <th>Expense Categories</th>
                                 <th>Remarks</th>
                                 <th>Total Amount</th>
+                                <th>Entry Date</th>
                                 <th>Created At</th>
                                 <th>Actions</th>
                             </tr>
@@ -42,13 +43,14 @@
                                 <td><span class="badge bg-info text-dark">{{ $voucher->narration_text }}</span></td>
                                 <td>{{ $voucher->remarks }}</td>
                                 <td><strong>{{ number_format($voucher->total_amount, 2) }}</strong></td>
+                                <td>{{ $voucher->entry_date }}</td>
                                 <td>{{ $voucher->created_at->format('d-M-Y H:i') }}</td>
                                 <td>
                                     <button class="btn btn-sm btn-primary view-details-btn" 
                                             data-evid="{{ $voucher->evid }}"
                                             data-source="{{ $voucher->party_name }}"
                                             data-remarks="{{ $voucher->remarks }}"
-                                            data-date="{{ $voucher->created_at->format('d-M-Y H:i') }}"
+                                            data-date="{{ $voucher->entry_date ?? $voucher->created_at->format('d-M-Y H:i') }}"
                                             data-total="{{ number_format($voucher->total_amount, 2) }}"
                                             data-rows='@json($voucher->details_json)'>
                                         <i class="bi bi-eye"></i>

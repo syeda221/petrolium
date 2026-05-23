@@ -207,8 +207,8 @@
       </div>
 
       <div class="row">
-        <div>Receipt Date:</div>
-        <div>{{ \Carbon\Carbon::parse($voucher->receipt_date ?? now())->format('d-M-Y') }}</div>
+        <div>Entry Date:</div>
+        <div>{{ \Carbon\Carbon::parse($voucher->entry_date ?? $voucher->created_at)->format('d-M-Y') }}</div>
       </div>
       <div class="row">
         <div>Date & Time:</div>
