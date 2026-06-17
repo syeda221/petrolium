@@ -328,6 +328,9 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/create-voucher', [VoucherController::class, 'createVoucher'])->name('create.voucher');
 
+    Route::get('/voucher-history', [VoucherController::class, 'voucherHistory'])->name('voucher.history');
+    Route::get('/voucher-history/data', [VoucherController::class, 'voucherHistoryData'])->name('voucher.history.data');
+
     Route::get('/all-recepit-vochers', [VoucherController::class, 'all_recepit_vochers'])->name('all-recepit-vochers')->middleware('permission:Receipts Voucher');
     Route::get('/recepit-vochers', [VoucherController::class, 'recepit_vochers'])->name('recepit-vochers');
     Route::post('/recepit/vochers/stote', [VoucherController::class, 'store_rec_vochers'])->name('recepit.vochers.store');

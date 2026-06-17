@@ -4,8 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Account;
 use App\Models\AccountHead;
+use App\Models\AccountTransfer;
 use App\Models\CustomerLedger;
+use App\Models\CustomerPayment;
 use App\Models\ExpenseVoucher;
+use App\Models\OtherIncome;
+use App\Models\TransferVoucher;
+use App\Models\VendorPayment;
 use App\Models\Voucher;
 use Illuminate\Http\Request;
 use App\Models\Narration;
@@ -1109,5 +1114,194 @@ class VoucherController extends Controller
             DB::rollBack();
             return back()->with('error', 'Error: ' . $e->getMessage());
         }
+    }
+
+    // ======================== VOUCHER HISTORY ========================
+
+    public function voucherHistory()
+    {
+        $accounts = Account::where('status', 1)->orderBy('title')->get();
+        return view('admin_panel.vochers.voucher_history', compact('accounts'));
+    }
+
+    public function voucherHistoryData(Request $request)
+    {
+        $type = $request->input('type', 'all');
+        $search = is_array($s = $request->input('search', '')) ? ($s['value'] ?? '') : $s;
+        $fromDate = $request->input('from_date');
+        $toDate = $request->input('to_date');
+        $minAmount = $request->input('min_amount');
+        $maxAmount = $request->input('max_amount');
+        $partyFilter = $request->input('party_type');
+        $accountId = $request->input('account_id');
+        $start = (int) $request->input('start', 0);
+        $length = (int) $request->input('length', 10);
+
+        $all = collect();
+        $dateSortKey = 'date';
+
+        // ---------- EXPENSE ----------
+        if (in_array($type, ['all', 'expense'])) {
+            $q = ExpenseVoucher::with('vendor', 'customer', 'partyAccount');
+            if ($search) $q->where(function($s) use ($search) { $s->where('evid', 'LIKE', "%$search%")->orWhere('remarks', 'LIKE', "%$search%"); });
+            if ($fromDate) $q->whereDate('entry_date', '>=', $fromDate);
+            if ($toDate) $q->whereDate('entry_date', '<=', $toDate);
+            if ($minAmount) $q->where('total_amount', '>=', $minAmount);
+            if ($maxAmount) $q->where('total_amount', '<=', $maxAmount);
+            foreach ($q->get() as $r) {
+                $partyType = $r->type_name;
+                $party = $r->type === 'vendor' ? ($r->vendor->name ?? '') : ($r->type === 'customer' ? ($r->customer->customer_name ?? '') : ($r->partyAccount->title ?? ''));
+                $cats = collect();
+                $rowAccIds = is_array($r->row_account_id) ? $r->row_account_id : (json_decode($r->row_account_id, true) ?? []);
+                foreach ($rowAccIds as $aid) {
+                    $cat = \App\Models\ExpenseCategory::find($aid);
+                    if ($cat) $cats->push($cat->title);
+                }
+                $detail = $cats->take(3)->implode(', ') . ($cats->count() > 3 ? ' +' . ($cats->count() - 3) : '');
+                $all->push(['id' => $r->id, 'source' => 'expense', 'type_label' => 'Expense', 'voucher_no' => $r->evid, 'date' => $r->entry_date, 'party_name' => $party, 'party_type_label' => $partyType, 'detail' => $detail, 'account' => $r->tel, 'amount' => (float)($r->total_amount ?? 0), 'created_by' => '', 'remarks' => $r->remarks, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at]);
+            }
+        }
+
+        // ---------- PAYMENT IN (CustomerPayment adj=minus + VendorPayment adj=plus) ----------
+        if (in_array($type, ['all', 'payment_in'])) {
+            $cp = CustomerPayment::with('customer', 'account')->where('adjustment_type', 'minus');
+            $vp = VendorPayment::with('vendor', 'account')->where('adjustment_type', 'plus');
+            if ($search) {
+                $cp->where(function($s) use ($search) { $s->where('id', 'LIKE', "%$search%"); });
+                $vp->where(function($s) use ($search) { $s->where('id', 'LIKE', "%$search%"); });
+            }
+            if ($fromDate) { $cp->whereDate('payment_date', '>=', $fromDate); $vp->whereDate('payment_date', '>=', $fromDate); }
+            if ($toDate) { $cp->whereDate('payment_date', '<=', $toDate); $vp->whereDate('payment_date', '<=', $toDate); }
+            if ($minAmount) { $cp->where('amount', '>=', $minAmount); $vp->where('amount', '>=', $minAmount); }
+            if ($maxAmount) { $cp->where('amount', '<=', $maxAmount); $vp->where('amount', '<=', $maxAmount); }
+            if ($partyFilter === 'customer') $vp->whereRaw('1=0');
+            if ($partyFilter === 'vendor') $cp->whereRaw('1=0');
+            if ($accountId) { $cp->where('account_id', $accountId); $vp->where('account_id', $accountId); }
+            foreach ($cp->get() as $r) {
+                $all->push(['id' => $r->id, 'source' => 'payment_in', 'type_label' => 'Payment In', 'voucher_no' => 'PIN-' . str_pad($r->id, 4, '0', STR_PAD_LEFT), 'date' => $r->payment_date, 'party_name' => $r->customer->customer_name ?? '', 'party_type_label' => 'Customer', 'detail' => $r->payment_method ? ('Method: ' . $r->payment_method) : '', 'account' => $r->account->title ?? '', 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->note, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at]);
+            }
+            foreach ($vp->get() as $r) {
+                $all->push(['id' => $r->id, 'source' => 'payment_in', 'type_label' => 'Payment In', 'voucher_no' => 'PIN-' . str_pad($r->id, 4, '0', STR_PAD_LEFT), 'date' => $r->payment_date, 'party_name' => $r->vendor->name ?? '', 'party_type_label' => 'Vendor', 'detail' => $r->payment_method ? ('Method: ' . $r->payment_method) : '', 'account' => $r->account->title ?? '', 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->note, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at]);
+            }
+        }
+
+        // ---------- PAYMENT OUT (VendorPayment adj=minus + CustomerPayment adj=plus) ----------
+        if (in_array($type, ['all', 'payment_out'])) {
+            $vp = VendorPayment::with('vendor', 'account')->where('adjustment_type', 'minus');
+            $cp = CustomerPayment::with('customer', 'account')->where('adjustment_type', 'plus');
+            if ($search) {
+                $vp->where(function($s) use ($search) { $s->where('id', 'LIKE', "%$search%"); });
+                $cp->where(function($s) use ($search) { $s->where('id', 'LIKE', "%$search%"); });
+            }
+            if ($fromDate) { $vp->whereDate('payment_date', '>=', $fromDate); $cp->whereDate('payment_date', '>=', $fromDate); }
+            if ($toDate) { $vp->whereDate('payment_date', '<=', $toDate); $cp->whereDate('payment_date', '<=', $toDate); }
+            if ($minAmount) { $vp->where('amount', '>=', $minAmount); $cp->where('amount', '>=', $minAmount); }
+            if ($maxAmount) { $vp->where('amount', '<=', $maxAmount); $cp->where('amount', '<=', $maxAmount); }
+            if ($partyFilter === 'vendor') $cp->whereRaw('1=0');
+            if ($partyFilter === 'customer') $vp->whereRaw('1=0');
+            if ($accountId) { $vp->where('account_id', $accountId); $cp->where('account_id', $accountId); }
+            foreach ($vp->get() as $r) {
+                $all->push(['id' => $r->id, 'source' => 'payment_out', 'type_label' => 'Payment Out', 'voucher_no' => 'POUT-' . str_pad($r->id, 4, '0', STR_PAD_LEFT), 'date' => $r->payment_date, 'party_name' => $r->vendor->name ?? '', 'party_type_label' => 'Vendor', 'detail' => $r->payment_method ? ('Method: ' . $r->payment_method) : '', 'account' => $r->account->title ?? '', 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->note, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at]);
+            }
+            foreach ($cp->get() as $r) {
+                $all->push(['id' => $r->id, 'source' => 'payment_out', 'type_label' => 'Payment Out', 'voucher_no' => 'POUT-' . str_pad($r->id, 4, '0', STR_PAD_LEFT), 'date' => $r->payment_date, 'party_name' => $r->customer->customer_name ?? '', 'party_type_label' => 'Customer', 'detail' => $r->payment_method ? ('Method: ' . $r->payment_method) : '', 'account' => $r->account->title ?? '', 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->note, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at]);
+            }
+        }
+
+        // ---------- INCOME ----------
+        if (in_array($type, ['all', 'income'])) {
+            $q = OtherIncome::with('vendor', 'customer', 'account');
+            if ($search) $q->where(function($s) use ($search) { $s->where('title', 'LIKE', "%$search%")->orWhere('remarks', 'LIKE', "%$search%"); });
+            if ($fromDate) $q->whereDate('date', '>=', $fromDate);
+            if ($toDate) $q->whereDate('date', '<=', $toDate);
+            if ($minAmount) $q->where('amount', '>=', $minAmount);
+            if ($maxAmount) $q->where('amount', '<=', $maxAmount);
+            if ($partyFilter === 'customer') $q->where('party_type', 'customer');
+            elseif ($partyFilter === 'vendor') $q->where('party_type', 'vendor');
+            if ($accountId) $q->where('account_id', $accountId);
+            foreach ($q->get() as $r) {
+                $party = $r->party_type === 'vendor' ? ($r->vendor->name ?? '') : ($r->party_type === 'customer' ? ($r->customer->customer_name ?? '') : ($r->account->title ?? ''));
+                $ptLabel = $r->party_type === 'vendor' ? 'Vendor' : ($r->party_type === 'customer' ? 'Customer' : 'Account');
+                $all->push(['id' => $r->id, 'source' => 'income', 'type_label' => 'Income', 'voucher_no' => 'INC-' . str_pad($r->id, 4, '0', STR_PAD_LEFT), 'date' => $r->date, 'party_name' => $party, 'party_type_label' => $ptLabel, 'detail' => '', 'account' => $r->account->title ?? '', 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->title, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at]);
+            }
+        }
+
+        // ---------- PARTY TRANSFER ----------
+        if (in_array($type, ['all', 'party_transfer'])) {
+            $q = TransferVoucher::query();
+            if ($search) $q->where(function($s) use ($search) { $s->where('tvid', 'LIKE', "%$search%")->orWhere('remarks', 'LIKE', "%$search%"); });
+            if ($fromDate) $q->whereDate('transfer_date', '>=', $fromDate);
+            if ($toDate) $q->whereDate('transfer_date', '<=', $toDate);
+            if ($minAmount) $q->where('amount', '>=', $minAmount);
+            if ($maxAmount) $q->where('amount', '<=', $maxAmount);
+            if ($accountId) $q->whereRaw('1=0');
+            foreach ($q->get() as $r) {
+                $srcName = '';
+                if ($r->source_party_type === 'customer') $srcName = \App\Models\Customer::find($r->source_party_id)->customer_name ?? '';
+                elseif ($r->source_party_type === 'vendor') $srcName = \App\Models\Vendor::find($r->source_party_id)->name ?? '';
+                $dstName = '';
+                if ($r->destination_party_type === 'customer') $dstName = \App\Models\Customer::find($r->destination_party_id)->customer_name ?? '';
+                elseif ($r->destination_party_type === 'vendor') $dstName = \App\Models\Vendor::find($r->destination_party_id)->name ?? '';
+                $srcLabel = $r->source_party_type === 'customer' ? 'C' : 'V';
+                $dstLabel = $r->destination_party_type === 'customer' ? 'C' : 'V';
+                $party = "$srcName ($srcLabel) \u{2192} $dstName ($dstLabel)";
+                $detail = "Source: {$r->source_party_type} / Dest: {$r->destination_party_type}";
+                $all->push(['id' => $r->id, 'source' => 'party_transfer', 'type_label' => 'Party to Party', 'voucher_no' => $r->tvid, 'date' => $r->transfer_date, 'party_name' => $party, 'party_type_label' => '', 'detail' => $detail, 'account' => '', 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->remarks, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at]);
+            }
+        }
+
+        // ---------- ACCOUNT TRANSFER ----------
+        if (in_array($type, ['all', 'account_transfer'])) {
+            $q = AccountTransfer::with('fromAccount', 'toAccount');
+            if ($search) $q->where(function($s) use ($search) { $s->where('atvid', 'LIKE', "%$search%")->orWhere('remarks', 'LIKE', "%$search%"); });
+            if ($fromDate) $q->whereDate('transfer_date', '>=', $fromDate);
+            if ($toDate) $q->whereDate('transfer_date', '<=', $toDate);
+            if ($minAmount) $q->where('amount', '>=', $minAmount);
+            if ($maxAmount) $q->where('amount', '<=', $maxAmount);
+            if ($accountId) $q->where(function($a) use ($accountId) { $a->where('from_account_id', $accountId)->orWhere('to_account_id', $accountId); });
+            foreach ($q->get() as $r) {
+                $from = $r->fromAccount->title ?? '';
+                $to = $r->toAccount->title ?? '';
+                $all->push(['id' => $r->id, 'source' => 'account_transfer', 'type_label' => 'Account Transfer', 'voucher_no' => $r->atvid, 'date' => $r->transfer_date, 'party_name' => $from . ' → ' . $to, 'party_type_label' => 'Transfer', 'detail' => $from . ' → ' . $to, 'account' => $from . ' → ' . $to, 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->remarks, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at]);
+            }
+        }
+
+        // Additional search on merged data for party name / voucher no / detail
+        if ($search) {
+            $all = $all->filter(function($v) use ($search) {
+                return stripos($v['voucher_no'] ?? '', $search) !== false
+                    || stripos($v['party_name'] ?? '', $search) !== false
+                    || stripos($v['detail'] ?? '', $search) !== false
+                    || stripos($v['remarks'] ?? '', $search) !== false;
+            })->values();
+        }
+
+        // Sort by date desc
+        $all = $all->sortByDesc('date')->values();
+
+        $recordsTotal = $all->count();
+
+        // Paginate
+        $page = $length > 0 ? ($start / $length) + 1 : 1;
+        $paginated = $all->forPage($page, $length);
+        $recordsFiltered = $recordsTotal;
+
+        // Summary based on filtered results
+        $summary = [
+            'total_vouchers' => $recordsFiltered,
+            'total_amount'   => $all->sum('amount'),
+            'total_expense'  => $all->where('source', 'expense')->sum('amount'),
+            'total_income'   => $all->where('source', 'income')->sum('amount'),
+            'total_payment_in'  => $all->where('source', 'payment_in')->sum('amount'),
+            'total_payment_out' => $all->where('source', 'payment_out')->sum('amount'),
+        ];
+
+        return response()->json([
+            'draw'            => (int) $request->input('draw', 1),
+            'recordsTotal'    => $recordsTotal,
+            'recordsFiltered' => $recordsFiltered,
+            'data'            => $paginated->values(),
+            'summary'         => $summary,
+        ]);
     }
 }

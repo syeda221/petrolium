@@ -23,4 +23,9 @@ class VendorPayment extends Model
     {
         return $this->belongsTo(Vendor::class);
     }
+
+    public function account()
+    {
+        return $this->belongsTo(Account::class);
+    }
 }

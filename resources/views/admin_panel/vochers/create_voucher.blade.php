@@ -8,12 +8,12 @@
     --voucher-primary-light: rgba(37,99,235,0.08);
     --voucher-bg: #f8fafc;
     --voucher-card-bg: #ffffff;
-    --voucher-border: #e2e8f0;
+    --voucher-border: #d1d5db;
     --voucher-border-focus: #2563eb;
     --voucher-text: #1e293b;
     --voucher-text-muted: #64748b;
     --voucher-input-bg: #ffffff;
-    --voucher-input-border: #cbd5e1;
+    --voucher-input-border: #b0b7c3;
     --voucher-success: #16a34a;
     --voucher-danger: #dc2626;
     --voucher-card-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
@@ -507,7 +507,7 @@ small.text-muted {
 
             {{-- ==================== EXPENSE VOUCHER ==================== --}}
             <div class="voucher-form-section active" id="form-expense">
-                <form class="voucher-form" data-action="{{ route('expense.vochers.store') }}" method="POST">
+                <form class="voucher-form" data-action="{{ route('expense.vochers.store') }}" method="POST" novalidate>
                     @csrf
                     <div class="row g-3 mb-3">
                         <div class="col-md-1">
@@ -575,7 +575,7 @@ small.text-muted {
 
             {{-- ==================== PAYMENT IN VOUCHER ==================== --}}
             <div class="voucher-form-section" id="form-payment_in">
-                <form class="voucher-form" data-action="{{ route('payment.in.store') }}" method="POST">
+                <form class="voucher-form" data-action="{{ route('payment.in.store') }}" method="POST" novalidate>
                     @csrf
                     <div class="row g-3 mb-3">
                         <div class="col-md-3">
@@ -653,7 +653,7 @@ small.text-muted {
 
             {{-- ==================== PAYMENT OUT VOUCHER ==================== --}}
             <div class="voucher-form-section" id="form-payment_out">
-                <form class="voucher-form" data-action="{{ route('payment.out.store') }}" method="POST">
+                <form class="voucher-form" data-action="{{ route('payment.out.store') }}" method="POST" novalidate>
                     @csrf
                     <div class="row g-3 mb-3">
                         <div class="col-md-3">
@@ -731,7 +731,7 @@ small.text-muted {
 
             {{-- ==================== INCOME VOUCHER ==================== --}}
             <div class="voucher-form-section" id="form-income">
-                <form class="voucher-form" data-action="{{ route('other.income.store') }}" method="POST">
+                <form class="voucher-form" data-action="{{ route('other.income.store') }}" method="POST" novalidate>
                     @csrf
                     <div class="row g-3 mb-3">
                         <div class="col-md-3">
@@ -817,7 +817,7 @@ small.text-muted {
 
             {{-- ==================== PARTY-TO-PARTY TRANSFER ==================== --}}
             <div class="voucher-form-section" id="form-party_transfer">
-                <form class="voucher-form" data-action="{{ route('transfer-vouchers.store') }}" method="POST">
+                <form class="voucher-form" data-action="{{ route('transfer-vouchers.store') }}" method="POST" novalidate>
                     @csrf
                     <div class="row g-3 mb-3">
                         <div class="col-md-3">
@@ -899,7 +899,7 @@ small.text-muted {
 
             {{-- ==================== ACCOUNT TRANSFER ==================== --}}
             <div class="voucher-form-section" id="form-account_transfer">
-                <form class="voucher-form" data-action="{{ route('account-transfers.store') }}" method="POST">
+                <form class="voucher-form" data-action="{{ route('account-transfers.store') }}" method="POST" novalidate>
                     @csrf
                     <div class="row g-3 mb-3">
                         <div class="col-md-3">
