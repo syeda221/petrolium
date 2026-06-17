@@ -18,6 +18,34 @@ use Illuminate\Support\Facades\DB;
 class VoucherController extends Controller
 {
 
+    public function createVoucher()
+    {
+        $AccountHeads = AccountHead::get();
+        $accounts = Account::orderBy('title')->get();
+        $ExpenseAccounts = \App\Models\ExpenseCategory::orderBy('title')->get();
+        $customers = \App\Models\Customer::all();
+        $vendors = \App\Models\Vendor::all();
+        $narrations = \App\Models\Narration::pluck('narration', 'id');
+
+        $lastRvid = \App\Models\ReceiptsVoucher::latest('id')->first();
+        $nextRvid = 'RVID-' . str_pad(($lastRvid ? $lastRvid->id + 1 : 1), 3, '0', STR_PAD_LEFT);
+
+        $lastPvid = \App\Models\PaymentVoucher::latest('id')->first();
+        $nextPvid = 'PVID-' . str_pad(($lastPvid ? $lastPvid->id + 1 : 1), 3, '0', STR_PAD_LEFT);
+
+        $lastEvid = \App\Models\ExpenseVoucher::latest('id')->first();
+        $nextEvid = 'EVID-' . str_pad(($lastEvid ? $lastEvid->id + 1 : 1), 3, '0', STR_PAD_LEFT);
+
+        $nextTvid = \App\Models\TransferVoucher::generateInvoiceNo();
+        $nextAtvid = \App\Models\AccountTransfer::generateInvoiceNo();
+
+        return view('admin_panel.vochers.create_voucher', compact(
+            'AccountHeads', 'accounts', 'ExpenseAccounts',
+            'customers', 'vendors', 'narrations',
+            'nextRvid', 'nextPvid', 'nextEvid', 'nextTvid', 'nextAtvid'
+        ));
+    }
+
     public function all_recepit_vochers()
     {
         $receipts = \App\Models\ReceiptsVoucher::orderBy('id', 'DESC')->get();
