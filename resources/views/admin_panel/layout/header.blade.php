@@ -250,13 +250,13 @@
                                 </li> -->
                                 @endcan
                                 @can('Expense Voucher')
-                                <li class="nav-item">
+                                <!-- <li class="nav-item">
                                     <a class="nav-link" href="{{ route('all-expense-vochers') }}">
                                         <i class="fas fa-receipt mr-2"></i> Expense Vouchers
                                     </a>
-                                </li>
+                                </li> -->
                                 @endcan
-                                <li class="nav-item">
+                                <!-- <li class="nav-item">
                                     <a class="nav-link" href="{{ route('payment.in') }}">
                                         <i class="fas fa-hand-holding-usd mr-2"></i> Payment In (Customer)
                                     </a>
@@ -280,7 +280,7 @@
                                     <a class="nav-link" href="{{ route('account-transfers') }}">
                                         <i class="fas fa-random mr-2"></i> Account Transfers Payment
                                     </a>
-                                </li>
+                                </li> -->
                                 <!-- <li class="nav-item">
                                     <a class="nav-link" href="{{ route('journal-vouchers') }}">
                                         <i class="fas fa-journal-whills mr-2"></i> Journal Vouchers (Day Book)
