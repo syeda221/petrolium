@@ -361,26 +361,38 @@ Route::middleware('auth')->group(function () {
     Route::get('/transfer-vouchers/all', [\App\Http\Controllers\TransferVoucherController::class, 'all_transfer_vouchers'])->name('transfer-vouchers.all');
     Route::get('/transfer-vouchers/edit/{id}', [\App\Http\Controllers\TransferVoucherController::class, 'edit'])->name('transfer-vouchers.edit');
     Route::post('/transfer-vouchers/update/{id}', [\App\Http\Controllers\TransferVoucherController::class, 'update'])->name('transfer-vouchers.update');
+    Route::get('/transfer-vouchers/print/{id}', [\App\Http\Controllers\TransferVoucherController::class, 'printTransfer'])->name('transfer-vouchers.print');
+    Route::delete('/transfer-vouchers/{id}', [\App\Http\Controllers\TransferVoucherController::class, 'destroy'])->name('transfer-vouchers.delete');
 
     Route::get('/account-transfers', [\App\Http\Controllers\AccountTransferController::class, 'index'])->name('account-transfers');
     Route::post('/account-transfers/store', [\App\Http\Controllers\AccountTransferController::class, 'store'])->name('account-transfers.store');
     Route::get('/account-transfers/all', [\App\Http\Controllers\AccountTransferController::class, 'all_account_transfers'])->name('account-transfers.all');
+    Route::get('/account-transfers/edit/{id}', [\App\Http\Controllers\AccountTransferController::class, 'edit'])->name('account-transfers.edit');
+    Route::post('/account-transfers/update/{id}', [\App\Http\Controllers\AccountTransferController::class, 'update'])->name('account-transfers.update');
+    Route::delete('/account-transfers/{id}', [\App\Http\Controllers\AccountTransferController::class, 'destroy'])->name('account-transfers.delete');
+    Route::get('/account-transfers/print/{id}', [\App\Http\Controllers\AccountTransferController::class, 'printTransfer'])->name('account-transfers.print');
 
     // Simple Finance (Payment In & Out, Other Income)
     Route::get('/finance/payment-in', [\App\Http\Controllers\SimpleFinanceController::class, 'paymentIn'])->name('payment.in');
     Route::post('/finance/payment-in', [\App\Http\Controllers\SimpleFinanceController::class, 'storePaymentIn'])->name('payment.in.store');
+    Route::get('/finance/payment-in/{id}/{type}/edit', [\App\Http\Controllers\SimpleFinanceController::class, 'editPaymentIn'])->name('payment.in.edit');
     Route::put('/finance/payment-in/{id}/{type}', [\App\Http\Controllers\SimpleFinanceController::class, 'updatePaymentIn'])->name('payment.in.update');
     Route::delete('/finance/payment-in/{id}/{type}', [\App\Http\Controllers\SimpleFinanceController::class, 'destroyPaymentIn'])->name('payment.in.delete');
+    Route::get('/finance/payment-in/print/{id}/{type}', [\App\Http\Controllers\SimpleFinanceController::class, 'printPaymentIn'])->name('payment.in.print');
 
     Route::get('/finance/payment-out', [\App\Http\Controllers\SimpleFinanceController::class, 'paymentOut'])->name('payment.out');
     Route::post('/finance/payment-out', [\App\Http\Controllers\SimpleFinanceController::class, 'storePaymentOut'])->name('payment.out.store');
+    Route::get('/finance/payment-out/{id}/{type}/edit', [\App\Http\Controllers\SimpleFinanceController::class, 'editPaymentOut'])->name('payment.out.edit');
     Route::put('/finance/payment-out/{id}/{type}', [\App\Http\Controllers\SimpleFinanceController::class, 'updatePaymentOut'])->name('payment.out.update');
     Route::delete('/finance/payment-out/{id}/{type}', [\App\Http\Controllers\SimpleFinanceController::class, 'destroyPaymentOut'])->name('payment.out.delete');
+    Route::get('/finance/payment-out/print/{id}/{type}', [\App\Http\Controllers\SimpleFinanceController::class, 'printPaymentOut'])->name('payment.out.print');
 
     Route::get('/finance/other-income', [\App\Http\Controllers\SimpleFinanceController::class, 'otherIncome'])->name('other.income');
     Route::post('/finance/other-income', [\App\Http\Controllers\SimpleFinanceController::class, 'storeOtherIncome'])->name('other.income.store');
+    Route::get('/finance/other-income/{id}/edit', [\App\Http\Controllers\SimpleFinanceController::class, 'editOtherIncome'])->name('other.income.edit');
     Route::put('/finance/other-income/{id}', [\App\Http\Controllers\SimpleFinanceController::class, 'updateOtherIncome'])->name('other.income.update');
     Route::delete('/finance/other-income/{id}', [\App\Http\Controllers\SimpleFinanceController::class, 'destroyOtherIncome'])->name('other.income.delete');
+    Route::get('/finance/other-income/print/{id}', [\App\Http\Controllers\SimpleFinanceController::class, 'printOtherIncome'])->name('other.income.print');
 
     Route::get('cashbook', [ReportingController::class, 'cashbook'])->name('cashbook');
     Route::get('report/cash-book', [ReportingController::class, 'simple_cash_book'])->name('report.cash_book');

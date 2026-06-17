@@ -220,10 +220,50 @@ class TransferVoucherController extends Controller
             ]);
 
             \Illuminate\Support\Facades\DB::commit();
-            return redirect()->route('transfer-vouchers.all')->with('success', 'Transfer Voucher updated successfully! Ledger balances have been adjusted.');
+            return redirect()->route('voucher.history')->with('success', 'Transfer Voucher updated successfully! Ledger balances have been adjusted.');
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\DB::rollBack();
             return redirect()->back()->with('error', $e->getMessage());
         }
+    }
+
+    public function destroy($id)
+    {
+        $voucher = \App\Models\TransferVoucher::findOrFail($id);
+        $amount = (float) $voucher->amount;
+
+        \Illuminate\Support\Facades\DB::beginTransaction();
+        try {
+            // Reverse Source
+            if ($voucher->source_party_type == 'customer') {
+                $ledger = \App\Models\CustomerLedger::where('customer_id', $voucher->source_party_id)->latest()->first();
+                if ($ledger) { $ledger->update(['closing_balance' => $ledger->closing_balance + $amount]); }
+            } else {
+                $ledger = \App\Models\VendorLedger::where('vendor_id', $voucher->source_party_id)->latest()->first();
+                if ($ledger) { $ledger->update(['closing_balance' => $ledger->closing_balance - $amount]); }
+            }
+
+            // Reverse Destination
+            if ($voucher->destination_party_type == 'customer') {
+                $ledger = \App\Models\CustomerLedger::where('customer_id', $voucher->destination_party_id)->latest()->first();
+                if ($ledger) { $ledger->update(['closing_balance' => $ledger->closing_balance - $amount]); }
+            } else {
+                $ledger = \App\Models\VendorLedger::where('vendor_id', $voucher->destination_party_id)->latest()->first();
+                if ($ledger) { $ledger->update(['closing_balance' => $ledger->closing_balance + $amount]); }
+            }
+
+            $voucher->delete();
+            \Illuminate\Support\Facades\DB::commit();
+            return redirect()->route('voucher.history')->with('success', 'Transfer Voucher deleted and balances reversed.');
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\DB::rollBack();
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+    }
+
+    public function printTransfer($id)
+    {
+        $voucher = \App\Models\TransferVoucher::findOrFail($id);
+        return view('admin_panel.vochers.transfer_voucher_print', compact('voucher'));
     }
 }

@@ -126,14 +126,22 @@
                                         </td>
                                         <td class="text-info font-weight-bold">{{ number_format($inc->amount, 2) }}</td>
                                         <td>
-                                            <!-- Edit Button removed for simplicity as it needs complex logic for party change, or can be kept with minimal fields -->
-                                            
-                                            <!-- Delete Button -->
-                                            <form action="{{ route('other.income.delete', $inc->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this specific income? Ledger/Balance will be reverted.');">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-                                            </form>
+                                            <div class="btn-group btn-group-sm" style="gap:2px;">
+                                                <button type="button" class="btn btn-outline-warning" title="Edit Voucher"
+                                                    data-bs-toggle="modal" data-bs-target="#editModal{{ $inc->id }}">
+                                                    <i class="fas fa-pen"></i>
+                                                </button>
+                                                <a href="{{ route('other.income.print', $inc->id) }}"
+                                                    target="_blank" class="btn btn-outline-primary" title="Print Voucher">
+                                                    <i class="fas fa-print"></i>
+                                                </a>
+                                                <button type="button" class="btn btn-outline-danger btn-delete" title="Delete Voucher"
+                                                    data-delete-url="{{ route('other.income.delete', $inc->id) }}"
+                                                    data-delete-method="DELETE"
+                                                    data-label="INC-{{ str_pad($inc->id, 4, '0', STR_PAD_LEFT) }} (Other Income)">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 @endforeach
@@ -145,6 +153,45 @@
         </div>
     </div>
 </div>
+
+@foreach($incomes as $inc)
+<div class="modal fade" id="editModal{{ $inc->id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form action="{{ route('other.income.update', $inc->id) }}" method="POST">
+          @csrf
+          @method('PUT')
+          <div class="modal-header">
+            <h5 class="modal-title">Edit Other Income</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+              <div class="mb-2">
+                  <label class="form-label">Date</label>
+                  <input type="date" name="date" class="form-control" value="{{ $inc->date }}" required>
+              </div>
+              <div class="mb-2">
+                  <label class="form-label">Source / Title</label>
+                  <input type="text" name="title" class="form-control" value="{{ $inc->title }}" required>
+              </div>
+              <div class="mb-2">
+                  <label class="form-label">Amount (PKR)</label>
+                  <input type="number" name="amount" class="form-control" step="0.01" min="1" value="{{ $inc->amount }}" required>
+              </div>
+              <div class="mb-2">
+                  <label class="form-label">Remarks</label>
+                  <input type="text" name="remarks" class="form-control" value="{{ $inc->remarks }}">
+              </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-warning">Update Income</button>
+          </div>
+      </form>
+    </div>
+  </div>
+</div>
+@endforeach
 
 @section('scripts')
 <script>
@@ -177,8 +224,44 @@
             }
         });
 
-        // Initial required state
         $('#account_select_wrapper select').attr('required', true);
+
+        // SweetAlert2 Delete
+        $(document).on('click', '.btn-delete', function(e) {
+            e.preventDefault();
+            var url = $(this).data('delete-url');
+            var method = $(this).data('delete-method') || 'GET';
+            var label = $(this).data('label') || 'this voucher';
+            Swal.fire({
+                title: 'Delete Voucher?',
+                html: 'Are you sure you want to delete <strong>' + label + '</strong>?<br>This action cannot be undone.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Yes, delete it!',
+                cancelButtonText: 'Cancel',
+                reverseButtons: true
+            }).then(function(result) {
+                if (!result.isConfirmed) return;
+                if (method === 'DELETE') {
+                    $.ajax({
+                        url: url,
+                        type: 'POST',
+                        data: { _method: 'DELETE', _token: '{{ csrf_token() }}' },
+                        success: function() {
+                            Swal.fire({ icon: 'success', title: 'Deleted!', timer: 1500, showConfirmButton: false });
+                            setTimeout(function() { location.reload(); }, 1500);
+                        },
+                        error: function(xhr) {
+                            Swal.fire({ icon: 'error', title: 'Error', text: xhr.responseJSON?.message || 'Failed to delete.' });
+                        }
+                    });
+                } else {
+                    window.location.href = url;
+                }
+            });
+        });
     });
 </script>
 @endsection

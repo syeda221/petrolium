@@ -151,7 +151,7 @@ class SimpleFinanceController extends Controller
                 ]);
             }
         }
-        return redirect()->back()->with('success', 'Payment In updated successfully.');
+        return redirect()->route('voucher.history')->with('success', 'Payment In updated successfully.');
     }
 
     public function destroyPaymentIn($id, $type)
@@ -332,7 +332,7 @@ class SimpleFinanceController extends Controller
             }
         }
         
-        return redirect()->back()->with('success', 'Payment Out updated successfully.');
+        return redirect()->route('voucher.history')->with('success', 'Payment Out updated successfully.');
     }
 
     public function destroyPaymentOut($id, $type)
@@ -464,8 +464,45 @@ class SimpleFinanceController extends Controller
             'amount' => 'required|numeric|min:1',
             'date' => 'required|date',
         ]);
-        OtherIncome::findOrFail($id)->update($request->all());
-        return redirect()->back()->with('success', 'Other Income updated successfully.');
+
+        $income = OtherIncome::findOrFail($id);
+        $oldAmount = (float) $income->amount;
+        $newAmount = (float) $request->amount;
+        $difference = $newAmount - $oldAmount;
+
+        if ($difference != 0) {
+            if ($income->party_type == 'account' && $income->account_id) {
+                $account = \App\Models\Account::find($income->account_id);
+                if ($account) {
+                    $account->update(['opening_balance' => $account->opening_balance + $difference]);
+                }
+            } elseif ($income->party_type == 'vendor' && $income->vendor_id) {
+                $ledger = VendorLedger::where('vendor_id', $income->vendor_id)->latest()->first();
+                if ($ledger) {
+                    $ledger->update([
+                        'previous_balance' => $ledger->closing_balance,
+                        'closing_balance' => $ledger->closing_balance - $difference,
+                    ]);
+                }
+            } elseif ($income->party_type == 'customer' && $income->customer_id) {
+                $ledger = CustomerLedger::where('customer_id', $income->customer_id)->latest()->first();
+                if ($ledger) {
+                    $ledger->update([
+                        'previous_balance' => $ledger->closing_balance,
+                        'closing_balance' => $ledger->closing_balance + $difference,
+                    ]);
+                }
+            }
+        }
+
+        $income->update([
+            'title' => $request->title,
+            'amount' => $newAmount,
+            'date' => $request->date,
+            'remarks' => $request->remarks,
+        ]);
+
+        return redirect()->route('voucher.history')->with('success', 'Other Income updated successfully.');
     }
 
     public function destroyOtherIncome($id)
@@ -506,6 +543,73 @@ class SimpleFinanceController extends Controller
 
         $income->delete();
         return redirect()->back()->with('success', 'Other Income deleted.');
+    }
+
+    // ==========================================
+    // PRINT METHODS
+    // ==========================================
+    public function printPaymentIn($id, $type)
+    {
+        if ($type == 'customer') {
+            $payment = CustomerPayment::with('customer', 'account')->findOrFail($id);
+            $party = $payment->customer;
+            $partyType = 'Customer';
+        } else {
+            $payment = VendorPayment::with('vendor', 'account')->findOrFail($id);
+            $party = $payment->vendor;
+            $partyType = 'Vendor';
+        }
+        return view('admin_panel.vochers.payment_in_print', compact('payment', 'party', 'partyType'));
+    }
+
+    public function printPaymentOut($id, $type)
+    {
+        if ($type == 'vendor') {
+            $payment = VendorPayment::with('vendor', 'account')->findOrFail($id);
+            $party = $payment->vendor;
+            $partyType = 'Vendor';
+        } else {
+            $payment = CustomerPayment::with('customer', 'account')->findOrFail($id);
+            $party = $payment->customer;
+            $partyType = 'Customer';
+        }
+        return view('admin_panel.vochers.payment_out_print', compact('payment', 'party', 'partyType'));
+    }
+
+    public function printOtherIncome($id)
+    {
+        $income = OtherIncome::with('vendor', 'customer', 'account')->findOrFail($id);
+        return view('admin_panel.vochers.other_income_print', compact('income'));
+    }
+
+    public function editPaymentIn($id, $type)
+    {
+        if ($type == 'customer') {
+            $payment = CustomerPayment::with('customer', 'account')->findOrFail($id);
+            $partyName = $payment->customer->customer_name ?? '';
+        } else {
+            $payment = VendorPayment::with('vendor', 'account')->findOrFail($id);
+            $partyName = $payment->vendor->name ?? '';
+        }
+        return view('admin_panel.vochers.edit_payment_in', compact('payment', 'type', 'partyName'));
+    }
+
+    public function editPaymentOut($id, $type)
+    {
+        if ($type == 'vendor') {
+            $payment = VendorPayment::with('vendor', 'account')->findOrFail($id);
+            $partyName = $payment->vendor->name ?? '';
+        } else {
+            $payment = CustomerPayment::with('customer', 'account')->findOrFail($id);
+            $partyName = $payment->customer->customer_name ?? '';
+        }
+        return view('admin_panel.vochers.edit_payment_out', compact('payment', 'type', 'partyName'));
+    }
+
+    public function editOtherIncome($id)
+    {
+        $income = OtherIncome::with('vendor', 'customer', 'account')->findOrFail($id);
+        return view('admin_panel.vochers.edit_other_income', compact('income'));
     }
 }
 

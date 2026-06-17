@@ -1069,7 +1069,7 @@ class VoucherController extends Controller
             }
 
             DB::commit();
-            return redirect()->route('all-expense-vochers')->with('success', 'Expense Voucher updated successfully!');
+            return redirect()->route('voucher.history')->with('success', 'Expense Voucher updated successfully!');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Error: ' . $e->getMessage());
@@ -1158,7 +1158,7 @@ class VoucherController extends Controller
                     if ($cat) $cats->push($cat->title);
                 }
                 $detail = $cats->take(3)->implode(', ') . ($cats->count() > 3 ? ' +' . ($cats->count() - 3) : '');
-                $all->push(['id' => $r->id, 'source' => 'expense', 'type_label' => 'Expense', 'voucher_no' => $r->evid, 'date' => $r->entry_date, 'party_name' => $party, 'party_type_label' => $partyType, 'detail' => $detail, 'account' => $r->tel, 'amount' => (float)($r->total_amount ?? 0), 'created_by' => '', 'remarks' => $r->remarks, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at]);
+                $all->push(['id' => $r->id, 'source' => 'expense', 'type_label' => 'Expense', 'voucher_no' => $r->evid, 'date' => $r->entry_date, 'party_name' => $party, 'party_type_label' => $partyType, 'detail' => $detail, 'account' => $r->tel, 'amount' => (float)($r->total_amount ?? 0), 'created_by' => '', 'remarks' => $r->remarks, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at, 'edit_url' => route('expense-vocher.edit', $r->id), 'print_url' => route('expenseVoucher.print', $r->id), 'delete_url' => route('expense-vocher.delete', $r->id), 'delete_method' => 'GET']);
             }
         }
 
@@ -1178,10 +1178,10 @@ class VoucherController extends Controller
             if ($partyFilter === 'vendor') $cp->whereRaw('1=0');
             if ($accountId) { $cp->where('account_id', $accountId); $vp->where('account_id', $accountId); }
             foreach ($cp->get() as $r) {
-                $all->push(['id' => $r->id, 'source' => 'payment_in', 'type_label' => 'Payment In', 'voucher_no' => 'PIN-' . str_pad($r->id, 4, '0', STR_PAD_LEFT), 'date' => $r->payment_date, 'party_name' => $r->customer->customer_name ?? '', 'party_type_label' => 'Customer', 'detail' => $r->payment_method ? ('Method: ' . $r->payment_method) : '', 'account' => $r->account->title ?? '', 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->note, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at]);
+                $all->push(['id' => $r->id, 'source' => 'payment_in', 'type_label' => 'Payment In', 'voucher_no' => 'PIN-' . str_pad($r->id, 4, '0', STR_PAD_LEFT), 'date' => $r->payment_date, 'party_name' => $r->customer->customer_name ?? '', 'party_type_label' => 'Customer', 'detail' => $r->payment_method ? ('Method: ' . $r->payment_method) : '', 'account' => $r->account->title ?? '', 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->note, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at, 'edit_url' => route('payment.in.edit', [$r->id, 'customer']), 'print_url' => route('payment.in.print', [$r->id, 'customer']), 'delete_url' => route('payment.in.delete', [$r->id, 'customer']), 'delete_method' => 'DELETE']);
             }
             foreach ($vp->get() as $r) {
-                $all->push(['id' => $r->id, 'source' => 'payment_in', 'type_label' => 'Payment In', 'voucher_no' => 'PIN-' . str_pad($r->id, 4, '0', STR_PAD_LEFT), 'date' => $r->payment_date, 'party_name' => $r->vendor->name ?? '', 'party_type_label' => 'Vendor', 'detail' => $r->payment_method ? ('Method: ' . $r->payment_method) : '', 'account' => $r->account->title ?? '', 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->note, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at]);
+                $all->push(['id' => $r->id, 'source' => 'payment_in', 'type_label' => 'Payment In', 'voucher_no' => 'PIN-' . str_pad($r->id, 4, '0', STR_PAD_LEFT), 'date' => $r->payment_date, 'party_name' => $r->vendor->name ?? '', 'party_type_label' => 'Vendor', 'detail' => $r->payment_method ? ('Method: ' . $r->payment_method) : '', 'account' => $r->account->title ?? '', 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->note, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at, 'edit_url' => route('payment.in.edit', [$r->id, 'vendor']), 'print_url' => route('payment.in.print', [$r->id, 'vendor']), 'delete_url' => route('payment.in.delete', [$r->id, 'vendor']), 'delete_method' => 'DELETE']);
             }
         }
 
@@ -1201,10 +1201,10 @@ class VoucherController extends Controller
             if ($partyFilter === 'customer') $vp->whereRaw('1=0');
             if ($accountId) { $vp->where('account_id', $accountId); $cp->where('account_id', $accountId); }
             foreach ($vp->get() as $r) {
-                $all->push(['id' => $r->id, 'source' => 'payment_out', 'type_label' => 'Payment Out', 'voucher_no' => 'POUT-' . str_pad($r->id, 4, '0', STR_PAD_LEFT), 'date' => $r->payment_date, 'party_name' => $r->vendor->name ?? '', 'party_type_label' => 'Vendor', 'detail' => $r->payment_method ? ('Method: ' . $r->payment_method) : '', 'account' => $r->account->title ?? '', 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->note, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at]);
+                $all->push(['id' => $r->id, 'source' => 'payment_out', 'type_label' => 'Payment Out', 'voucher_no' => 'POUT-' . str_pad($r->id, 4, '0', STR_PAD_LEFT), 'date' => $r->payment_date, 'party_name' => $r->vendor->name ?? '', 'party_type_label' => 'Vendor', 'detail' => $r->payment_method ? ('Method: ' . $r->payment_method) : '', 'account' => $r->account->title ?? '', 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->note, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at, 'edit_url' => route('payment.out.edit', [$r->id, 'vendor']), 'print_url' => route('payment.out.print', [$r->id, 'vendor']), 'delete_url' => route('payment.out.delete', [$r->id, 'vendor']), 'delete_method' => 'DELETE']);
             }
             foreach ($cp->get() as $r) {
-                $all->push(['id' => $r->id, 'source' => 'payment_out', 'type_label' => 'Payment Out', 'voucher_no' => 'POUT-' . str_pad($r->id, 4, '0', STR_PAD_LEFT), 'date' => $r->payment_date, 'party_name' => $r->customer->customer_name ?? '', 'party_type_label' => 'Customer', 'detail' => $r->payment_method ? ('Method: ' . $r->payment_method) : '', 'account' => $r->account->title ?? '', 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->note, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at]);
+                $all->push(['id' => $r->id, 'source' => 'payment_out', 'type_label' => 'Payment Out', 'voucher_no' => 'POUT-' . str_pad($r->id, 4, '0', STR_PAD_LEFT), 'date' => $r->payment_date, 'party_name' => $r->customer->customer_name ?? '', 'party_type_label' => 'Customer', 'detail' => $r->payment_method ? ('Method: ' . $r->payment_method) : '', 'account' => $r->account->title ?? '', 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->note, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at, 'edit_url' => route('payment.out.edit', [$r->id, 'customer']), 'print_url' => route('payment.out.print', [$r->id, 'customer']), 'delete_url' => route('payment.out.delete', [$r->id, 'customer']), 'delete_method' => 'DELETE']);
             }
         }
 
@@ -1222,7 +1222,7 @@ class VoucherController extends Controller
             foreach ($q->get() as $r) {
                 $party = $r->party_type === 'vendor' ? ($r->vendor->name ?? '') : ($r->party_type === 'customer' ? ($r->customer->customer_name ?? '') : ($r->account->title ?? ''));
                 $ptLabel = $r->party_type === 'vendor' ? 'Vendor' : ($r->party_type === 'customer' ? 'Customer' : 'Account');
-                $all->push(['id' => $r->id, 'source' => 'income', 'type_label' => 'Income', 'voucher_no' => 'INC-' . str_pad($r->id, 4, '0', STR_PAD_LEFT), 'date' => $r->date, 'party_name' => $party, 'party_type_label' => $ptLabel, 'detail' => '', 'account' => $r->account->title ?? '', 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->title, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at]);
+                $all->push(['id' => $r->id, 'source' => 'income', 'type_label' => 'Income', 'voucher_no' => 'INC-' . str_pad($r->id, 4, '0', STR_PAD_LEFT), 'date' => $r->date, 'party_name' => $party, 'party_type_label' => $ptLabel, 'detail' => '', 'account' => $r->account->title ?? '', 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->title, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at, 'edit_url' => route('other.income.edit', $r->id), 'print_url' => route('other.income.print', $r->id), 'delete_url' => route('other.income.delete', $r->id), 'delete_method' => 'DELETE']);
             }
         }
 
@@ -1246,7 +1246,7 @@ class VoucherController extends Controller
                 $dstLabel = $r->destination_party_type === 'customer' ? 'C' : 'V';
                 $party = "$srcName ($srcLabel) \u{2192} $dstName ($dstLabel)";
                 $detail = "Source: {$r->source_party_type} / Dest: {$r->destination_party_type}";
-                $all->push(['id' => $r->id, 'source' => 'party_transfer', 'type_label' => 'Party to Party', 'voucher_no' => $r->tvid, 'date' => $r->transfer_date, 'party_name' => $party, 'party_type_label' => '', 'detail' => $detail, 'account' => '', 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->remarks, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at]);
+                $all->push(['id' => $r->id, 'source' => 'party_transfer', 'type_label' => 'Party to Party', 'voucher_no' => $r->tvid, 'date' => $r->transfer_date, 'party_name' => $party, 'party_type_label' => '', 'detail' => $detail, 'account' => '', 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->remarks, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at, 'edit_url' => route('transfer-vouchers.edit', $r->id), 'print_url' => route('transfer-vouchers.print', $r->id), 'delete_url' => route('transfer-vouchers.delete', $r->id), 'delete_method' => 'DELETE']);
             }
         }
 
@@ -1262,7 +1262,7 @@ class VoucherController extends Controller
             foreach ($q->get() as $r) {
                 $from = $r->fromAccount->title ?? '';
                 $to = $r->toAccount->title ?? '';
-                $all->push(['id' => $r->id, 'source' => 'account_transfer', 'type_label' => 'Account Transfer', 'voucher_no' => $r->atvid, 'date' => $r->transfer_date, 'party_name' => $from . ' → ' . $to, 'party_type_label' => 'Transfer', 'detail' => $from . ' → ' . $to, 'account' => $from . ' → ' . $to, 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->remarks, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at]);
+                $all->push(['id' => $r->id, 'source' => 'account_transfer', 'type_label' => 'Account Transfer', 'voucher_no' => $r->atvid, 'date' => $r->transfer_date, 'party_name' => $from . ' → ' . $to, 'party_type_label' => 'Transfer', 'detail' => $from . ' → ' . $to, 'account' => $from . ' → ' . $to, 'amount' => (float)($r->amount ?? 0), 'created_by' => '', 'remarks' => $r->remarks, 'created_at' => $r->created_at, 'updated_at' => $r->updated_at, 'edit_url' => route('account-transfers.edit', $r->id), 'print_url' => route('account-transfers.print', $r->id), 'delete_url' => route('account-transfers.delete', $r->id), 'delete_method' => 'DELETE']);
             }
         }
 

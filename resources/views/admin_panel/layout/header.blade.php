@@ -218,6 +218,16 @@
                                     </a>
                                 </li>
                                 @endcan
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{{ route('voucher.history') }}">
+                                        <i class="fas fa-list mr-2"></i> All Vouchers View
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{{ route('create.voucher') }}">
+                                        <i class="fas fa-plus-circle mr-2"></i> All Vouchers Create
+                                    </a>
+                                </li>
                                 @can('Narrations')
                                 <!-- <li class="nav-item">
                                     <a class="nav-link" href="{{ route('narrations.index') }}">

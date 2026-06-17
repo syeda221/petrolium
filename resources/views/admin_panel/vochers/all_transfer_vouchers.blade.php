@@ -64,11 +64,22 @@
                                         <td class="font-weight-bold text-dark">{{ number_format($voucher->amount, 2) }}</td>
                                         <td>{{ $voucher->remarks ?? '-' }}</td>
                                         <td>
-                                            <a href="{{ route('transfer-vouchers.edit', $voucher->id) }}"
-                                               class="btn btn-sm btn-warning fw-bold"
-                                               title="Edit Voucher">
-                                               <i class="mdi mdi-pencil"></i> Edit
-                                            </a>
+                                            <div class="btn-group btn-group-sm" style="gap:2px;">
+                                                <a href="{{ route('transfer-vouchers.edit', $voucher->id) }}"
+                                                   class="btn btn-outline-warning" title="Edit Voucher">
+                                                   <i class="fas fa-pen"></i>
+                                                </a>
+                                                <a href="{{ route('transfer-vouchers.print', $voucher->id) }}"
+                                                   target="_blank" class="btn btn-outline-primary" title="Print Voucher">
+                                                   <i class="fas fa-print"></i>
+                                                </a>
+                                                <button type="button" class="btn btn-outline-danger btn-delete" title="Delete Voucher"
+                                                    data-delete-url="{{ route('transfer-vouchers.delete', $voucher->id) }}"
+                                                    data-delete-method="DELETE"
+                                                    data-label="{{ $voucher->tvid }} (Transfer Voucher)">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 @endforeach
@@ -86,7 +97,47 @@
 @section('scripts')
 <script>
     $(document).ready(function() {
+        if ($.fn.DataTable.isDataTable('#datatable')) {
+            $('#datatable').DataTable().destroy();
+        }
         $('#datatable').DataTable();
+
+        // SweetAlert2 Delete
+        $(document).on('click', '.btn-delete', function(e) {
+            e.preventDefault();
+            var url = $(this).data('delete-url');
+            var method = $(this).data('delete-method') || 'GET';
+            var label = $(this).data('label') || 'this voucher';
+            Swal.fire({
+                title: 'Delete Voucher?',
+                html: 'Are you sure you want to delete <strong>' + label + '</strong>?<br>This action cannot be undone.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Yes, delete it!',
+                cancelButtonText: 'Cancel',
+                reverseButtons: true
+            }).then(function(result) {
+                if (!result.isConfirmed) return;
+                if (method === 'DELETE') {
+                    $.ajax({
+                        url: url,
+                        type: 'POST',
+                        data: { _method: 'DELETE', _token: '{{ csrf_token() }}' },
+                        success: function() {
+                            Swal.fire({ icon: 'success', title: 'Deleted!', timer: 1500, showConfirmButton: false });
+                            setTimeout(function() { location.reload(); }, 1500);
+                        },
+                        error: function(xhr) {
+                            Swal.fire({ icon: 'error', title: 'Error', text: xhr.responseJSON?.message || 'Failed to delete.' });
+                        }
+                    });
+                } else {
+                    window.location.href = url;
+                }
+            });
+        });
     });
 </script>
 @endsection

@@ -2,7 +2,6 @@
 @section('content')
 
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 
 <div class="main-content">
     <div class="container-fluid">
@@ -46,29 +45,32 @@
                                 <td>{{ $voucher->entry_date }}</td>
                                 <td>{{ $voucher->created_at->format('d-M-Y H:i') }}</td>
                                 <td>
-                                    <button class="btn btn-sm btn-primary view-details-btn" 
-                                            data-evid="{{ $voucher->evid }}"
-                                            data-source="{{ $voucher->party_name }}"
-                                            data-remarks="{{ $voucher->remarks }}"
-                                            data-date="{{ $voucher->entry_date ?? $voucher->created_at->format('d-M-Y H:i') }}"
-                                            data-total="{{ number_format($voucher->total_amount, 2) }}"
-                                            data-rows='@json($voucher->details_json)'>
-                                        <i class="bi bi-eye"></i>
-                                    </button>
-                                    <a href="{{ route('expense-vocher.edit', $voucher->id) }}"
-                                        class="btn btn-sm btn-info">
-                                        <i class="bi bi-pencil"></i>
-                                    </a>
-                                    <a href="{{ route('expenseVoucher.print', $voucher->id) }}"
-                                        target="_blank"
-                                        class="btn btn-sm btn-danger">
-                                        <i class="bi bi-printer"></i>
-                                    </a>
-                                    <a href="{{ route('expense-vocher.delete', $voucher->id) }}"
-                                       onclick="return confirm('Are you sure? All related balances will be reversed.')"
-                                        class="btn btn-sm btn-danger">
-                                        <i class="bi bi-trash"></i>
-                                    </a>
+                                    <div class="btn-group btn-group-sm" style="gap:2px;">
+                                        <button class="btn btn-outline-primary view-details-btn" 
+                                                title="View Details"
+                                                data-evid="{{ $voucher->evid }}"
+                                                data-source="{{ $voucher->party_name }}"
+                                                data-remarks="{{ $voucher->remarks }}"
+                                                data-date="{{ $voucher->entry_date ?? $voucher->created_at->format('d-M-Y H:i') }}"
+                                                data-total="{{ number_format($voucher->total_amount, 2) }}"
+                                                data-rows='@json($voucher->details_json)'>
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <a href="{{ route('expense-vocher.edit', $voucher->id) }}"
+                                            class="btn btn-outline-warning" title="Edit Voucher">
+                                            <i class="fas fa-pen"></i>
+                                        </a>
+                                        <a href="{{ route('expenseVoucher.print', $voucher->id) }}"
+                                            target="_blank" class="btn btn-outline-primary" title="Print Voucher">
+                                            <i class="fas fa-print"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-outline-danger btn-delete" title="Delete Voucher"
+                                            data-delete-url="{{ route('expense-vocher.delete', $voucher->id) }}"
+                                            data-delete-method="GET"
+                                            data-label="{{ $voucher->evid }} (Expense)">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                             @endforeach
@@ -153,6 +155,43 @@
             $('#modal-rows-body').html(rowsHtml);
 
             $('#detailsModal').modal('show');
+        });
+
+        // SweetAlert2 Delete
+        $(document).on('click', '.btn-delete', function(e) {
+            e.preventDefault();
+            var url = $(this).data('delete-url');
+            var method = $(this).data('delete-method') || 'GET';
+            var label = $(this).data('label') || 'this voucher';
+            Swal.fire({
+                title: 'Delete Voucher?',
+                html: 'Are you sure you want to delete <strong>' + label + '</strong>?<br>This action cannot be undone.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Yes, delete it!',
+                cancelButtonText: 'Cancel',
+                reverseButtons: true
+            }).then(function(result) {
+                if (!result.isConfirmed) return;
+                if (method === 'DELETE') {
+                    $.ajax({
+                        url: url,
+                        type: 'POST',
+                        data: { _method: 'DELETE', _token: '{{ csrf_token() }}' },
+                        success: function() {
+                            Swal.fire({ icon: 'success', title: 'Deleted!', timer: 1500, showConfirmButton: false });
+                            setTimeout(function() { location.reload(); }, 1500);
+                        },
+                        error: function(xhr) {
+                            Swal.fire({ icon: 'error', title: 'Error', text: xhr.responseJSON?.message || 'Failed to delete.' });
+                        }
+                    });
+                } else {
+                    window.location.href = url;
+                }
+            });
         });
     });
 </script>

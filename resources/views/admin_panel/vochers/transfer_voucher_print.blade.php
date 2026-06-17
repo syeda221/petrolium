@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Expense Voucher - {{ $voucher->evid ?? '' }}</title>
+  <title>Transfer Voucher - {{ $voucher->tvid ?? '' }}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', Arial, sans-serif; background: #f1f5f9; display: flex; justify-content: center; padding: 20px; }
@@ -11,18 +11,16 @@
     .v-body { padding: 28px 28px 20px; }
     .center { text-align: center; }
     .company { font-size: 18px; font-weight: 800; color: #1e293b; }
-    .voucher-title { font-size: 13px; font-weight: 700; color: #dc2626; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+    .voucher-title { font-size: 13px; font-weight: 700; color: #6366f1; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
     .divider { border: none; border-top: 2px dashed #d1d5db; margin: 14px 0; }
     .info-table { width: 100%; border-collapse: collapse; }
-    .info-table td { padding: 5px 0; font-size: 13px; vertical-align: top; }
+    .info-table td { padding: 6px 0; font-size: 13px; vertical-align: top; }
     .info-table .lbl { color: #64748b; font-weight: 600; width: 38%; }
     .info-table .val { color: #1e293b; font-weight: 700; text-align: right; }
-    .amount-row td { padding: 8px 0 4px; }
-    .amount-row .val { font-size: 20px; color: #dc2626; }
-    .items-table { width: 100%; border-collapse: collapse; margin: 8px 0; }
-    .items-table th { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; padding: 6px 0; border-bottom: 1px solid #e2e8f0; }
-    .items-table td { font-size: 12px; padding: 4px 0; border-bottom: 1px solid #f1f5f9; }
-    .items-table .r { text-align: right; }
+    .amount-row td { padding: 10px 0 4px; }
+    .amount-row .val { font-size: 20px; color: #6366f1; }
+    .party-name { font-weight: 700; }
+    .party-type-badge { font-size: 11px; color: #64748b; font-weight: 600; }
     .footer { border-top: 1px solid #e2e8f0; padding: 14px 28px; font-size: 11px; color: #94a3b8; text-align: center; }
     .actions { display: flex; gap: 8px; justify-content: flex-end; padding: 0 28px 16px; }
     .btn { padding: 6px 14px; border: 1px solid #d1d5db; background: #fff; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; color: #374151; }
@@ -32,12 +30,12 @@
 </head>
 <body>
   @php
-    $partyName = '-';
-    if(is_numeric($voucher->type)) $partyName = $party->name ?? '-';
-    elseif($voucher->type === 'vendor') $partyName = $party->name ?? '-';
-    elseif($voucher->type === 'customer') $partyName = $party->customer_name ?? '-';
-    elseif($voucher->type === 'walkin') $partyName = $party->customer_name ?? '-';
-    $partyLabel = is_numeric($voucher->type) ? 'Account' : ucfirst($voucher->type);
+    $srcName = '';
+    if ($voucher->source_party_type == 'customer') $srcName = \App\Models\Customer::find($voucher->source_party_id)->customer_name ?? 'Unknown';
+    elseif ($voucher->source_party_type == 'vendor') $srcName = \App\Models\Vendor::find($voucher->source_party_id)->name ?? 'Unknown';
+    $dstName = '';
+    if ($voucher->destination_party_type == 'customer') $dstName = \App\Models\Customer::find($voucher->destination_party_id)->customer_name ?? 'Unknown';
+    elseif ($voucher->destination_party_type == 'vendor') $dstName = \App\Models\Vendor::find($voucher->destination_party_id)->name ?? 'Unknown';
   @endphp
   <div class="voucher">
     <div class="actions">
@@ -47,28 +45,15 @@
     <div class="v-body">
       <div class="center">
         <div class="company">Al-Owais Petroleum Service</div>
-        <div class="voucher-title">Expense Voucher</div>
+        <div class="voucher-title">Party to Party Transfer Voucher</div>
       </div>
       <hr class="divider">
       <table class="info-table">
-        <tr><td class="lbl">Voucher No</td><td class="val">{{ $voucher->evid ?? '-' }}</td></tr>
-        <tr><td class="lbl">Date</td><td class="val">{{ \Carbon\Carbon::parse($voucher->entry_date ?? $voucher->created_at)->format('d-M-Y') }}</td></tr>
-        <tr><td class="lbl">Party</td><td class="val">{{ $partyName }} ({{ $partyLabel }})</td></tr>
-        <tr><td class="lbl">Account</td><td class="val">{{ $voucher->tel ?? '-' }}</td></tr>
-      </table>
-      @if(count($rows) > 0)
-      <table class="items-table">
-        <thead><tr><th>Description</th><th class="r">Amount</th></tr></thead>
-        <tbody>
-          @foreach($rows as $row)
-          <tr><td>{{ $row['narration'] ?? 'Expense' }}</td><td class="r fw-bold">{{ number_format($row['amount'] ?? 0, 2) }}</td></tr>
-          @endforeach
-        </tbody>
-      </table>
-      @endif
-      <hr class="divider">
-      <table class="info-table">
-        <tr class="amount-row"><td class="lbl">Total Amount</td><td class="val">Rs. {{ number_format($voucher->total_amount ?? 0, 2) }}</td></tr>
+        <tr><td class="lbl">Voucher No</td><td class="val">{{ $voucher->tvid }}</td></tr>
+        <tr><td class="lbl">Date</td><td class="val">{{ \Carbon\Carbon::parse($voucher->transfer_date)->format('d-M-Y') }}</td></tr>
+        <tr><td class="lbl">Source</td><td class="val">{{ $srcName }} <span class="party-type-badge">({{ ucfirst($voucher->source_party_type) }})</span></td></tr>
+        <tr><td class="lbl">Destination</td><td class="val">{{ $dstName }} <span class="party-type-badge">({{ ucfirst($voucher->destination_party_type) }})</span></td></tr>
+        <tr class="amount-row"><td class="lbl">Amount</td><td class="val">Rs. {{ number_format($voucher->amount, 2) }}</td></tr>
         <tr><td class="lbl">Remarks</td><td class="val">{{ $voucher->remarks ?? '-' }}</td></tr>
       </table>
       <hr class="divider">
