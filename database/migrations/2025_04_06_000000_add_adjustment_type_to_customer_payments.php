@@ -8,6 +8,9 @@ class AddAdjustmentTypeToCustomerPayments extends Migration
 {
     public function up()
     {
+        if (!Schema::hasTable('customer_payments')) {
+            return;
+        }
         Schema::table('customer_payments', function (Blueprint $table) {
             if (!Schema::hasColumn('customer_payments', 'adjustment_type')) {
                 $table->enum('adjustment_type', ['plus', 'minus'])->default('minus')->after('amount');
@@ -17,6 +20,9 @@ class AddAdjustmentTypeToCustomerPayments extends Migration
 
     public function down()
     {
+        if (!Schema::hasTable('customer_payments')) {
+            return;
+        }
         Schema::table('customer_payments', function (Blueprint $table) {
             if (Schema::hasColumn('customer_payments', 'adjustment_type')) {
                 $table->dropColumn('adjustment_type');

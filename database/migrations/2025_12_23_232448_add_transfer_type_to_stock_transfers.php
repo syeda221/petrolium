@@ -9,13 +9,10 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-   public function up()
+    public function up()
     {
         Schema::table('stock_transfers', function (Blueprint $table) {
-            $table->string('transfer_to')->after('from_warehouse_id'); 
-            // warehouse | shop
-
-            $table->unsignedBigInteger('to_warehouse_id')->nullable()->change();
+            $table->string('transfer_to')->after('from_warehouse_id');
             $table->string('shop_name')->nullable();
         });
     }
