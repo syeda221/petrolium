@@ -348,6 +348,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/expense-vochers', [VoucherController::class, 'expense_vochers'])->name('expense-vochers');
     Route::post('/expense-category/store', [VoucherController::class, 'store_expense_category'])->name('expense.category.store');
+    Route::get('/expense-categories/list', [VoucherController::class, 'listExpenseCategories'])->name('expense.categories.list');
     Route::post('/expense-vochers/store', [VoucherController::class, 'store_expense_vochers'])->name('expense.vochers.store');
     Route::get('/all-expense-vochers', [VoucherController::class, 'all_expense_vochers'])->name('all-expense-vochers')->middleware('permission:Expense Voucher');
     Route::get('/expense-voucher/print/{id}', [VoucherController::class, 'expenseprint'])->name('expenseVoucher.print');

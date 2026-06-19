@@ -643,8 +643,22 @@ class VoucherController extends Controller
     public function store_expense_category(Request $request)
     {
         $request->validate(['title' => 'required|string|max:255']);
-        \App\Models\ExpenseCategory::create(['title' => $request->title]);
+        $category = \App\Models\ExpenseCategory::create(['title' => $request->title]);
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => 'Category added successfully!',
+                'category' => $category
+            ]);
+        }
+
         return back()->with('success', 'Expense Category Added Successfully!');
+    }
+
+    public function listExpenseCategories()
+    {
+        $categories = \App\Models\ExpenseCategory::orderBy('title')->get(['id', 'title']);
+        return response()->json($categories);
     }
 
     public function store_expense_vochers(Request $request)

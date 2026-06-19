@@ -563,9 +563,14 @@ small.text-muted {
                         </table>
                     </div>
                     <div class="d-flex justify-content-between mt-4">
-                        <button type="button" class="btn btn-add-row add-expense-row">
-                            <i class="bi bi-plus-lg"></i> Add Row
-                        </button>
+                        <div>
+                            <button type="button" class="btn btn-add-row add-expense-row">
+                                <i class="bi bi-plus-lg"></i> Add Row
+                            </button>
+                            <button type="button" class="btn btn-outline-dark ms-2" data-bs-toggle="modal" data-bs-target="#expenseCategoryModal">
+                                <i class="bi bi-plus-circle"></i> Add Category
+                            </button>
+                        </div>
                         <button type="submit" class="btn btn-voucher">
                             <i class="bi bi-check2-circle me-1"></i> Save Expense
                         </button>
@@ -966,6 +971,31 @@ small.text-muted {
     </div>
 </div>
 
+{{-- ==================== ADD EXPENSE CATEGORY MODAL ==================== --}}
+<div class="modal fade" id="expenseCategoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form id="addExpenseCategoryForm">
+            @csrf
+            <div class="modal-content">
+                <div class="modal-header text-white" style="background: #37a371; border-color: #37a371;">
+                    <h5 class="modal-title text-white">New Expense Category</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Category Title</label>
+                        <input type="text" name="title" class="form-control" required placeholder="e.g. Fuel Expense, Tea/Coffee">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn text-white" style="background: #37a371;">Save Category</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
 @endsection
 
 @section('scripts')
@@ -1113,20 +1143,61 @@ $(document).ready(function() {
 
     $(document).on('input', '#expenseTable .amount', calcExpenseTotal);
 
+    // ============== ADD EXPENSE CATEGORY (AJAX) ==============
+    $('#addExpenseCategoryForm').on('submit', function(e) {
+        e.preventDefault();
+        var $form = $(this);
+        var $btn = $form.find('button[type="submit"]');
+        $btn.prop('disabled', true).text('Saving...');
+
+        $.ajax({
+            url: '{{ route("expense.category.store") }}',
+            method: 'POST',
+            data: $form.serialize(),
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            success: function(resp) {
+                var cat = resp.category;
+                $('.rowAccountSub').each(function() {
+                    $(this).append('<option value="' + cat.id + '">' + cat.title + '</option>');
+                });
+                $('#expenseCategoryModal').modal('hide');
+                $form[0].reset();
+                Swal.fire({ icon: 'success', title: 'Added!', text: 'Category "' + cat.title + '" created.', timer: 1500, showConfirmButton: false });
+            },
+            error: function(xhr) {
+                var msg = 'Something went wrong.';
+                if (xhr.responseJSON && xhr.responseJSON.errors) {
+                    msg = Object.values(xhr.responseJSON.errors).flat().join('<br>');
+                } else if (xhr.responseJSON && xhr.responseJSON.error) {
+                    msg = xhr.responseJSON.error;
+                }
+                Swal.fire({ icon: 'error', title: 'Error', html: msg });
+            },
+            complete: function() {
+                $btn.prop('disabled', false).text('Save Category');
+            }
+        });
+    });
+
     $('.add-expense-row').on('click', function() {
         var row = `<tr>
             <td>
                 <select name="row_account_id[]" class="form-select rowAccountSub" required>
                     <option value="">Select Expense Category</option>
-                    @foreach($ExpenseAccounts as $acc)
-                    <option value="{{ $acc->id }}">{{ $acc->title }}</option>
-                    @endforeach
                 </select>
             </td>
             <td><input name="amount[]" type="text" class="form-control text-end amount" placeholder="0.00"></td>
             <td><button type="button" class="btn btn-danger btn-sm removeRow"><i class="bi bi-trash"></i></button></td>
         </tr>`;
-        $('#expenseTable tbody').append(row);
+        var $row = $(row);
+        // Populate categories via AJAX so newly-added ones appear
+        $.get('{{ route("expense.categories.list") }}', function(data) {
+            var $sel = $row.find('.rowAccountSub');
+            $.each(data, function(i, cat) {
+                $sel.append('<option value="' + cat.id + '">' + cat.title + '</option>');
+            });
+        });
+        $('#expenseTable tbody').append($row);
         $('#expenseTable tbody tr:last .rowAccountSub').focus();
     });
 
